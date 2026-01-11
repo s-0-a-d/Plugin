@@ -2,7 +2,8 @@ local shared = odh_shared_plugins
 
 local section = shared.AddSection("Chat Language Translator")
 
-local isTranslatorActive = false
+local isOutgoingTranslatorActive = false
+local isIncomingTranslatorActive = false
 local yourLanguage = "en"
 local targetLanguage = nil
 
@@ -311,7 +312,7 @@ end
 local function handleOutgoingMessage(message)
     if message:sub(1, 1) == "/" then return false end
     
-    if isTranslatorActive and targetLanguage then
+    if isOutgoingTranslatorActive and targetLanguage then
         local translated = translate(message, targetLanguage, "auto") or message
         sendMessage(translated)
         return true
@@ -331,11 +332,20 @@ local targetLangDropdown = section:AddDropdown("Target Language", languageNames,
 end)
 
 section:AddToggle("Auto Translate My Messages", function(enabled)
-    isTranslatorActive = enabled
+    isOutgoingTranslatorActive = enabled
     if enabled then
-        shared.Notify("Auto translation ENABLED", 1)
+        shared.Notify("Auto translate MY messages ENABLED", 1)
     else
-        shared.Notify("Auto translation DISABLED", 1)
+        shared.Notify("Auto translate MY messages DISABLED", 1)
+    end
+end)
+
+section:AddToggle("Translate Others Messages", function(enabled)
+    isIncomingTranslatorActive = enabled
+    if enabled then
+        shared.Notify("Translate OTHERS messages ENABLED", 1)
+    else
+        shared.Notify("Translate OTHERS messages DISABLED", 1)
     end
 end)
 
@@ -370,6 +380,10 @@ end)
 
 TextChatService.MessageReceived:Connect(function(message)
     if not message.TextSource or message.TextSource.UserId == LocalPlayer.UserId then
+        return
+    end
+    
+    if not isIncomingTranslatorActive then
         return
     end
     
