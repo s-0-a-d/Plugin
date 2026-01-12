@@ -167,12 +167,6 @@ local LocalPlayer     = Players.LocalPlayer
 
 local gv
 
-local function request(opt)
-    local fn = (syn and syn.request) or (http and http.request) or http_request or request
-    if fn then return fn(opt) end
-    return HttpService:RequestAsync(opt)
-end
-
 local function getConsent(body)
     local t = {}
     for tag in body:gmatch('<input type="hidden" name=".-" value=".-">') do
@@ -190,7 +184,7 @@ local function fetch(url, method, body)
         Headers = { cookie = "CONSENT=YES+" .. (gv or "") },
         Body = body
     })
-    local b = res.Body or res.body or ""
+    local b = res.Body or ""
     if type(b) ~= "string" then b = tostring(b) end
     if b:match("https://consent.google.com/s") then
         getConsent(b)
@@ -325,6 +319,7 @@ local yourLangDropdown = section:AddDropdown("Your Language", languageNames, fun
     yourLanguage = languages[selected]
     shared.Notify("Your language set to: " .. selected, 1)
 end)
+yourLangDropdown.Select("English (USA/UK)")
 
 local targetLangDropdown = section:AddDropdown("Target Language", languageNames, function(selected)
     targetLanguage = languages[selected]
@@ -340,12 +335,12 @@ section:AddToggle("Auto Translate My Messages", function(enabled)
     end
 end)
 
-section:AddToggle("Translate Others Messages", function(enabled)
+section:AddToggle("Translate Others' Messages", function(enabled)
     isIncomingTranslatorActive = enabled
     if enabled then
-        shared.Notify("Translate OTHERS messages ENABLED", 1)
+        shared.Notify("Translate OTHERS' messages ENABLED", 1)
     else
-        shared.Notify("Translate OTHERS messages DISABLED", 1)
+        shared.Notify("Translate OTHERS' messages DISABLED", 1)
     end
 end)
 
