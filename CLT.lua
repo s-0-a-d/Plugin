@@ -319,7 +319,6 @@ local yourLangDropdown = section:AddDropdown("Your Language", languageNames, fun
     yourLanguage = languages[selected]
     shared.Notify("Your language set to: " .. selected, 1)
 end)
-yourLangDropdown.Select("English (USA/UK)")
 
 local targetLangDropdown = section:AddDropdown("Target Language", languageNames, function(selected)
     targetLanguage = languages[selected]
