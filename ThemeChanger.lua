@@ -140,6 +140,7 @@ local VALID_ROOT_NAMES = {
     ["VFX"] = true,
     ["привязываемая кнопка"] = true,
     ["@bubbles.elia"] = true,
+    ["застрелить убийцу"] = true,
 }
 
 local SELF_RECOLOR = {
@@ -148,6 +149,7 @@ local SELF_RECOLOR = {
     ["VFX"] = true,
     ["привязываемая кнопка"] = true,
     ["@bubbles.elia"] = true,
+    ["застрелить убийцу"] = true,
 
     ["Maximize"] = false,
 }
