@@ -159,6 +159,9 @@ local function watch(obj)
         if not originalColor[obj] then
             originalColor[obj] = obj.BackgroundColor3
         end
+        if themeEnabled then
+            enqueue(obj)
+        end
         obj:GetPropertyChangedSignal("BackgroundColor3"):Connect(function()
             if themeEnabled then
                 enqueue(obj)
@@ -168,6 +171,9 @@ local function watch(obj)
     elseif obj:IsA("UIGradient") then
         if not originalGradient[obj] then
             originalGradient[obj] = obj.Color
+        end
+        if themeEnabled then
+            enqueue(obj)
         end
         obj:GetPropertyChangedSignal("Color"):Connect(function()
             if themeEnabled then
@@ -186,7 +192,12 @@ local function processRoot(root)
         watch(d)
     end
 
-    root.DescendantAdded:Connect(watch)
+    root.DescendantAdded:Connect(function(obj)
+        watch(obj)
+        if themeEnabled then
+            enqueue(obj)
+        end
+    end)
 end
 
 local function scan(service)
