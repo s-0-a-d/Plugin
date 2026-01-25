@@ -116,8 +116,8 @@ end
 local VALID_ROOT = {
     ["\009\001"] = true,
     ["Maximize"] = true,
-    ["NotificationContainer"] = true,
-    ["VFX"] = true,
+    ["@ripple.elia"] = true,
+    ["@notificationcontainer.elia"] = true,
     ["привязываемая кнопка"] = true,
     ["@bubbles.elia"] = true,
     ["застрелить убийцу"] = true,
