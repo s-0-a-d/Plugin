@@ -27,11 +27,10 @@ local function vip()
     end
 end
 
-local on, off
 local god = false
 local hc
 
-on = function()
+local on = function()
     local _,h = ch()
     h.MaxHealth = math.huge
     h.Health = math.huge
@@ -45,7 +44,7 @@ on = function()
     end)
 end
 
-off = function()
+local off = function()
     if hc then
         hc:Disconnect()
         hc = nil
@@ -66,6 +65,7 @@ lp.CharacterAdded:Connect(function()
 end)
 
 local spd = 2000
+local busy = false
 
 local function tweenTo(pos)
     local _,_,r = ch()
@@ -79,22 +79,13 @@ local function tweenTo(pos)
     tw.Completed:Wait()
 end
 
-local function go(list)
-    vip()
-    for _,pos in ipairs(list) do
-        tweenTo(pos)
-    end
-end
-
 local function findBase()
     local name = lp.Name
     local bases = w:FindFirstChild("Bases")
     if not bases then return nil end
 
     for _,b in ipairs(bases:GetChildren()) do
-        if not b:IsA("Model") and not b:IsA("Folder") then
-            continue
-        end
+        if not b:IsA("Model") and not b:IsA("Folder") then continue end
 
         local gui = b:FindFirstChild("TitleGui", true)
         if not gui then continue end
@@ -114,22 +105,74 @@ local function findBase()
     return nil
 end
 
-sec:AddButton("Teleport To Final Area + Unlock VIP Walls", function()
-    go({
-        Vector3.new(153, 4, -137),
-        Vector3.new(256, 4, -139),
-        Vector3.new(2465, 4, -139),
-    })
+local areas = {
+    Secret     = Vector3.new(2465, 4, -139),
+    Cosmic     = Vector3.new(1990, 4, -139),
+    Mythical   = Vector3.new(1365, 4, -139),
+    Legendary  = Vector3.new(953, 4, -139),
+    Epic       = Vector3.new(679, 4, -139),
+    Rare       = Vector3.new(500, 4, -139),
+    Uncommon   = Vector3.new(360, 4, -139),
+    Common     = Vector3.new(257, 4, -139),
+}
+
+local areaNames = {
+    "Secret",
+    "Cosmic",
+    "Mythical",
+    "Legendary",
+    "Epic",
+    "Rare",
+    "Uncommon",
+    "Common",
+}
+
+local current = "Secret"
+
+sec:AddDropdown("Area", areaNames, function(v)
+    current = v
 end)
 
-sec:AddButton("Teleport Back To Base", function()
-    tweenTo(Vector3.new(2465, 4, -139))
-    tweenTo(Vector3.new(256, 4, -139))
+local function nearestArea(pos)
+    local best, dist
+    for _,v in pairs(areas) do
+        local d = (v - pos).Magnitude
+        if not dist or d < dist then
+            dist = d
+            best = v
+        end
+    end
+    return best
+end
+
+local function teleportBack()
+    if busy then return end
+    busy = true
+
+    local _,_,r = ch()
+    local start = nearestArea(r.Position)
+    if start then
+        tweenTo(start)
+    end
+
     tweenTo(Vector3.new(153, 4, -137))
 
     local b = findBase()
-    if not b then return end
+    if b then
+        local cf = b:GetPivot()
+        tweenTo(cf.Position + Vector3.new(0, 5, 0))
+    end
 
-    local cf = b:GetPivot()
-    tweenTo(cf.Position + Vector3.new(0, 5, 0))
+    busy = false
+end
+
+sec:AddButton("Teleport To Area + Unlock VIP Walls", function()
+    if busy then return end
+    busy = true
+    vip()
+    tweenTo(Vector3.new(153, 4, -137))
+    tweenTo(areas[current])
+    busy = false
 end)
+
+sec:AddButton("Teleport Back To Base", teleportBack)
