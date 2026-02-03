@@ -1,7 +1,7 @@
 local s = odh_shared_plugins
 local p = game:GetService("Players")
-local t = game:GetService("TweenService")
 local w = game:GetService("Workspace")
+local rs = game:GetService("RunService")
 
 if s.game_name ~= "Escape Tsunami For Brainrots" then return end
 
@@ -34,23 +34,49 @@ local function nc(v)
     r.CanCollide = not v
 end
 
-local function tw(pos)
+local function mv(pos)
     local _,_,r = ch()
     nc(true)
 
-    local d = (pos - r.Position).Magnitude
-    local cf = r.CFrame - r.Position + pos
+    local y = r.Position.Y
+    local target = Vector3.new(pos.X, y, pos.Z)
 
-    local tr = t:Create(
-        r,
-        TweenInfo.new(d / spd, Enum.EasingStyle.Linear),
-        {CFrame = cf}
-    )
+    while true do
+        local dt = rs.Heartbeat:Wait()
+        local diff = target - r.Position
+        local dist = diff.Magnitude
 
-    tr:Play()
-    tr.Completed:Wait()
+        if dist <= 2 then
+            break
+        end
 
+        local step = math.min(spd * dt, dist)
+        r.AssemblyLinearVelocity = Vector3.zero
+        r.CFrame = CFrame.new(r.Position + diff.Unit * step)
+    end
+
+    r.AssemblyLinearVelocity = Vector3.zero
+    r.CFrame = CFrame.new(target)
     nc(false)
+end
+
+local function fb()
+    local n = lp.Name
+    local bs = w:FindFirstChild("Bases")
+    if not bs then return nil end
+    for _,b in ipairs(bs:GetChildren()) do
+        if not b:IsA("Model") and not b:IsA("Folder") then continue end
+        local g = b:FindFirstChild("TitleGui", true)
+        if not g then continue end
+        local f = g:FindFirstChildWhichIsA("Frame")
+        if not f then continue end
+        local l = f:FindFirstChild("PlayerName")
+        if not l then continue end
+        if (l:IsA("TextLabel") or l:IsA("TextButton")) and l.Text == n then
+            return b
+        end
+    end
+    return nil
 end
 
 local ar = {
@@ -100,13 +126,15 @@ local function tb()
     busy = true
 
     local _,_,r = ch()
-
     local start = na(r.Position)
-    if start then
-        tw(start)
-    end
+    if start then mv(start) end
+    mv(Vector3.new(153, 4, -137))
 
-    tw(Vector3.new(153, 4, -137))
+    local b = fb()
+    if b then
+        local cf = b:GetPivot()
+        mv(cf.Position + Vector3.new(0,5,0))
+    end
 
     busy = false
 end
@@ -115,8 +143,8 @@ sec:AddButton("Teleport To Area + Unlock VIP Walls", function()
     if busy then return end
     busy = true
     vip()
-    tw(Vector3.new(153,4,-137))
-    tw(ar[cur])
+    mv(Vector3.new(153,4,-137))
+    mv(ar[cur])
     busy = false
 end)
 
@@ -141,7 +169,6 @@ local function cg()
     btn.BorderSizePixel = 0
     btn.AutoButtonColor = false
     btn.Parent = gui
-
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0,12)
 
     btn.InputBegan:Connect(function(i)
@@ -150,12 +177,7 @@ local function cg()
             drag = true
             ds = i.Position
             sp = btn.Position
-            btn:TweenSize(
-                UDim2.new(0,130,0,46),
-                Enum.EasingDirection.Out,
-                Enum.EasingStyle.Quad,
-                0.12,true
-            )
+            btn:TweenSize(UDim2.new(0,130,0,46), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.12, true)
         end
     end)
 
@@ -163,20 +185,12 @@ local function cg()
         if i.UserInputType == Enum.UserInputType.MouseButton1
         or i.UserInputType == Enum.UserInputType.Touch then
             drag = false
-            btn:TweenSize(
-                UDim2.new(0,140,0,50),
-                Enum.EasingDirection.Out,
-                Enum.EasingStyle.Quad,
-                0.12,true
-            )
+            btn:TweenSize(UDim2.new(0,140,0,50), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.12, true)
         end
     end)
 
     btn.InputChanged:Connect(function(i)
-        if drag and (
-            i.UserInputType == Enum.UserInputType.MouseMovement
-            or i.UserInputType == Enum.UserInputType.Touch
-        ) then
+        if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
             local d = i.Position - ds
             btn.Position = UDim2.new(
                 sp.X.Scale, sp.X.Offset + d.X,
@@ -197,6 +211,144 @@ sec:AddToggle("Show Teleport Button", function(v)
 end)
 
 sec:AddKeybind("Teleport To Base Key", Enum.KeyCode.B, tb)
+
+local autoTakeBrainrots = false
+local firedPrompts = {}
+
+local function autoTake()
+    firedPrompts = {}
+    
+    for _, obj in ipairs(w:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") and not firedPrompts[obj] then
+            local promptName = obj.Name
+            local parentName = obj.Parent and obj.Parent.Name or ""
+            
+            local shouldFire = false
+            
+            if promptName == "TakePrompt" and parentName == "Root" then
+                shouldFire = true
+            elseif promptName == "ProximityPrompt" and parentName == "RootPart" then
+                shouldFire = true
+            end
+            
+            if shouldFire then
+                pcall(function()
+                    fireproximityprompt(obj)
+                    firedPrompts[obj] = true
+                end)
+            end
+        end
+    end
+end
+
+sec:AddToggle("Auto Carry Brainrots", function(v)
+    autoTakeBrainrots = v
+    if v then
+        task.spawn(function()
+            while autoTakeBrainrots do
+                autoTake()
+                task.wait(0.1)
+            end
+        end)
+    else
+        firedPrompts = {}
+    end
+end)
+
+w.DescendantAdded:Connect(function(desc)
+    if autoTakeBrainrots and desc:IsA("ProximityPrompt") and not firedPrompts[desc] then
+        local promptName = desc.Name
+        local parentName = desc.Parent and desc.Parent.Name or ""
+        
+        local shouldFire = false
+        
+        if promptName == "TakePrompt" and parentName == "Root" then
+            shouldFire = true
+        elseif promptName == "ProximityPrompt" and parentName == "RootPart" then
+            shouldFire = true
+        end
+        
+        if shouldFire then
+            task.spawn(function()
+                task.wait(0.1)
+                pcall(function()
+                    fireproximityprompt(desc)
+                    firedPrompts[desc] = true
+                end)
+            end)
+        end
+    end
+end)
+
+local function bringGold()
+    local char = lp.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    local hrp = char.HumanoidRootPart
+    
+    local paths = {
+        w:FindFirstChild("MoneyEventParts"),
+        w:FindFirstChild("MoneyMap"),
+        w.MoneyMap and w.MoneyMap:FindFirstChild("DefaultStudioMap")
+    }
+    
+    for _, folder in ipairs(paths) do
+        if folder then
+            for _, part in ipairs(folder:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name == "GoldBar" then
+                    pcall(function()
+                        part.Anchored = false
+                        part.CanCollide = false
+                        part.AssemblyLinearVelocity = Vector3.new()
+                        part.AssemblyAngularVelocity = Vector3.new()
+                        part.CFrame = hrp.CFrame * CFrame.new(math.random(-5,5), 3, math.random(-5,5))
+                    end)
+                end
+            end
+        end
+    end
+    
+    for _, part in ipairs(w:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name == "GoldBar" then
+            pcall(function()
+                part.Anchored = false
+                part.CanCollide = false
+                part.AssemblyLinearVelocity = Vector3.new()
+                part.AssemblyAngularVelocity = Vector3.new()
+                part.CFrame = hrp.CFrame * CFrame.new(math.random(-5,5), 3, math.random(-5,5))
+            end)
+        end
+    end
+end
+
+sec:AddToggle("Auto Bring All Gold (MoneyEvent)", function(v)
+    bringGoldBar = v
+    if v then
+        task.spawn(function()
+            while bringGoldBar do
+                bringGold()
+                task.wait(0.3)
+            end
+        end)
+    end
+end)
+
+w.DescendantAdded:Connect(function(obj)
+    if bringGoldBar and obj.Name == "GoldBar" and obj:IsA("BasePart") then
+        task.spawn(function()
+            task.wait(0.1)
+            local char = lp.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local hrp = char.HumanoidRootPart
+                pcall(function()
+                    obj.Anchored = false
+                    obj.CanCollide = false
+                    obj.AssemblyLinearVelocity = Vector3.new()
+                    obj.CFrame = hrp.CFrame * CFrame.new(math.random(-5,5), 3, math.random(-5,5))
+                end)
+            end
+        end)
+    end
+end)
 
 task.spawn(function()
     local function fixMap(dm)
@@ -226,14 +378,9 @@ task.spawn(function()
     end
 
     local function fixAll()
-        local dm1 = w:FindFirstChild("DefaultMap")
-        fixMap(dm1)
-
+        fixMap(w:FindFirstChild("DefaultMap"))
         local mm = w:FindFirstChild("MoneyMap")
-        if mm then
-            local dm2 = mm:FindFirstChild("DefaultStudioMap")
-            fixMap(dm2)
-        end
+        if mm then fixMap(mm:FindFirstChild("DefaultStudioMap")) end
     end
 
     fixAll()
