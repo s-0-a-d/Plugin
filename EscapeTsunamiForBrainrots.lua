@@ -53,25 +53,6 @@ local function tw(pos)
     nc(false)
 end
 
-local function fb()
-    local n = lp.Name
-    local bs = w:FindFirstChild("Bases")
-    if not bs then return nil end
-    for _,b in ipairs(bs:GetChildren()) do
-        if not b:IsA("Model") and not b:IsA("Folder") then continue end
-        local g = b:FindFirstChild("TitleGui", true)
-        if not g then continue end
-        local f = g:FindFirstChildWhichIsA("Frame")
-        if not f then continue end
-        local l = f:FindFirstChild("PlayerName")
-        if not l then continue end
-        if (l:IsA("TextLabel") or l:IsA("TextButton")) and l.Text == n then
-            return b
-        end
-    end
-    return nil
-end
-
 local ar = {
     Celestial = Vector3.new(2763,4,-140),
     Secret    = Vector3.new(2465,4,-139),
@@ -126,12 +107,6 @@ local function tb()
     end
 
     tw(Vector3.new(153, 4, -137))
-
-    local b = fb()
-    if b then
-        local cf = b:GetPivot()
-        tw(cf.Position + Vector3.new(0, 5, 0))
-    end
 
     busy = false
 end
