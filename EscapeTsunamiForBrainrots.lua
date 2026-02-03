@@ -3,11 +3,10 @@ local p = game:GetService("Players")
 local t = game:GetService("TweenService")
 local w = game:GetService("Workspace")
 
-if s.game_name ~= "Escape Tsunami For Brainrots" then
-    return
-end
+if s.game_name ~= "Escape Tsunami For Brainrots" then return end
 
 local lp = p.LocalPlayer
+local pg = lp:WaitForChild("PlayerGui")
 local sec = s.AddSection("TSUNAMI")
 
 local function ch()
@@ -27,96 +26,66 @@ local function vip()
     end
 end
 
-local god = false
-local hc
-
-local on = function()
-    local _,h = ch()
-    h.MaxHealth = math.huge
-    h.Health = math.huge
-    h.BreakJointsOnDeath = false
-
-    if hc then hc:Disconnect() end
-    hc = h.HealthChanged:Connect(function()
-        if god and h.Health < h.MaxHealth then
-            h.Health = h.MaxHealth
-        end
-    end)
-end
-
-local off = function()
-    if hc then
-        hc:Disconnect()
-        hc = nil
-    end
-end
-
-sec:AddToggle(
-    'God Mode <font color="rgb(255,0,0)">(1 Extra Life)</font>',
-    function(v)
-        god = v
-        if v then on() else off() end
-    end
-)
-
-lp.CharacterAdded:Connect(function()
-    task.wait(1)
-    if god then on() end
-end)
-
 local spd = 2000
 local busy = false
 
-local function tweenTo(pos)
+local function nc(v)
     local _,_,r = ch()
-    local d = (pos - r.Position).Magnitude
-    local tw = t:Create(
-        r,
-        TweenInfo.new(d / spd, Enum.EasingStyle.Linear),
-        {CFrame = CFrame.new(pos, pos + r.CFrame.LookVector)}
-    )
-    tw:Play()
-    tw.Completed:Wait()
+    r.CanCollide = not v
 end
 
-local function findBase()
-    local name = lp.Name
-    local bases = w:FindFirstChild("Bases")
-    if not bases then return nil end
+local function tw(pos)
+    local _,_,r = ch()
+    nc(true)
 
-    for _,b in ipairs(bases:GetChildren()) do
+    local d = (pos - r.Position).Magnitude
+    local cf = r.CFrame - r.Position + pos
+
+    local tr = t:Create(
+        r,
+        TweenInfo.new(d / spd, Enum.EasingStyle.Linear),
+        {CFrame = cf}
+    )
+
+    tr:Play()
+    tr.Completed:Wait()
+
+    nc(false)
+end
+
+local function fb()
+    local n = lp.Name
+    local bs = w:FindFirstChild("Bases")
+    if not bs then return nil end
+    for _,b in ipairs(bs:GetChildren()) do
         if not b:IsA("Model") and not b:IsA("Folder") then continue end
-
-        local gui = b:FindFirstChild("TitleGui", true)
-        if not gui then continue end
-
-        local f = gui:FindFirstChildWhichIsA("Frame")
+        local g = b:FindFirstChild("TitleGui", true)
+        if not g then continue end
+        local f = g:FindFirstChildWhichIsA("Frame")
         if not f then continue end
-
-        local lbl = f:FindFirstChild("PlayerName")
-        if not lbl then continue end
-        if not lbl:IsA("TextLabel") and not lbl:IsA("TextButton") then continue end
-
-        if lbl.Text == name then
+        local l = f:FindFirstChild("PlayerName")
+        if not l then continue end
+        if (l:IsA("TextLabel") or l:IsA("TextButton")) and l.Text == n then
             return b
         end
     end
-
     return nil
 end
 
-local areas = {
-    Secret     = Vector3.new(2465, 4, -139),
-    Cosmic     = Vector3.new(1990, 4, -139),
-    Mythical   = Vector3.new(1365, 4, -139),
-    Legendary  = Vector3.new(953, 4, -139),
-    Epic       = Vector3.new(679, 4, -139),
-    Rare       = Vector3.new(500, 4, -139),
-    Uncommon   = Vector3.new(360, 4, -139),
-    Common     = Vector3.new(257, 4, -139),
+local ar = {
+    Celestial = Vector3.new(2763,4,-140),
+    Secret    = Vector3.new(2465,4,-139),
+    Cosmic    = Vector3.new(1990,4,-139),
+    Mythical  = Vector3.new(1365,4,-139),
+    Legendary = Vector3.new(953,4,-139),
+    Epic      = Vector3.new(679,4,-139),
+    Rare      = Vector3.new(500,4,-139),
+    Uncommon  = Vector3.new(360,4,-139),
+    Common    = Vector3.new(257,4,-139),
 }
 
-local areaNames = {
+local an = {
+    "Celestial",
     "Secret",
     "Cosmic",
     "Mythical",
@@ -124,43 +93,44 @@ local areaNames = {
     "Epic",
     "Rare",
     "Uncommon",
-    "Common",
+    "Common"
 }
 
-local current = "Secret"
+local cur = "Celestial"
 
-sec:AddDropdown("Area", areaNames, function(v)
-    current = v
+sec:AddDropdown("Area", an, function(v)
+    cur = v
 end)
 
-local function nearestArea(pos)
-    local best, dist
-    for _,v in pairs(areas) do
-        local d = (v - pos).Magnitude
-        if not dist or d < dist then
-            dist = d
-            best = v
+local function na(pos)
+    local b, d
+    for _,v in pairs(ar) do
+        local m = (v - pos).Magnitude
+        if not d or m < d then
+            d = m
+            b = v
         end
     end
-    return best
+    return b
 end
 
-local function teleportBack()
+local function tb()
     if busy then return end
     busy = true
 
     local _,_,r = ch()
-    local start = nearestArea(r.Position)
+
+    local start = na(r.Position)
     if start then
-        tweenTo(start)
+        tw(start)
     end
 
-    tweenTo(Vector3.new(153, 4, -137))
+    tw(Vector3.new(153, 4, -137))
 
-    local b = findBase()
+    local b = fb()
     if b then
         local cf = b:GetPivot()
-        tweenTo(cf.Position + Vector3.new(0, 5, 0))
+        tw(cf.Position + Vector3.new(0, 5, 0))
     end
 
     busy = false
@@ -170,9 +140,133 @@ sec:AddButton("Teleport To Area + Unlock VIP Walls", function()
     if busy then return end
     busy = true
     vip()
-    tweenTo(Vector3.new(153, 4, -137))
-    tweenTo(areas[current])
+    tw(Vector3.new(153,4,-137))
+    tw(ar[cur])
     busy = false
 end)
 
-sec:AddButton("Teleport Back To Base", teleportBack)
+sec:AddButton("Teleport Back To Base", tb)
+
+local gui, btn
+local drag, ds, sp = false, nil, nil
+
+local function cg()
+    if gui then gui:Destroy() end
+    gui = Instance.new("ScreenGui")
+    gui.ResetOnSpawn = false
+    gui.Parent = pg
+
+    btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0,140,0,50)
+    btn.Position = UDim2.new(0.5,-70,0.85,-60)
+    btn.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.Text = "Teleport Base"
+    btn.TextSize = 16
+    btn.BorderSizePixel = 0
+    btn.AutoButtonColor = false
+    btn.Parent = gui
+
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0,12)
+
+    btn.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then
+            drag = true
+            ds = i.Position
+            sp = btn.Position
+            btn:TweenSize(
+                UDim2.new(0,130,0,46),
+                Enum.EasingDirection.Out,
+                Enum.EasingStyle.Quad,
+                0.12,true
+            )
+        end
+    end)
+
+    btn.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then
+            drag = false
+            btn:TweenSize(
+                UDim2.new(0,140,0,50),
+                Enum.EasingDirection.Out,
+                Enum.EasingStyle.Quad,
+                0.12,true
+            )
+        end
+    end)
+
+    btn.InputChanged:Connect(function(i)
+        if drag and (
+            i.UserInputType == Enum.UserInputType.MouseMovement
+            or i.UserInputType == Enum.UserInputType.Touch
+        ) then
+            local d = i.Position - ds
+            btn.Position = UDim2.new(
+                sp.X.Scale, sp.X.Offset + d.X,
+                sp.Y.Scale, sp.Y.Offset + d.Y
+            )
+        end
+    end)
+
+    btn.MouseButton1Click:Connect(tb)
+end
+
+sec:AddToggle("Show Teleport Button", function(v)
+    if v then
+        cg()
+    else
+        if gui then gui:Destroy() gui = nil btn = nil end
+    end
+end)
+
+sec:AddKeybind("Teleport To Base Key", Enum.KeyCode.B, tb)
+
+task.spawn(function()
+    local function fixMap(dm)
+        if not dm then return end
+
+        local wl = dm:FindFirstChild("Walls")
+        if wl then
+            local c6 = wl:GetChildren()[6]
+            if c6 then
+                local p = c6:GetChildren()[5]
+                if p then p:Destroy() end
+            end
+        end
+
+        local rw = dm:FindFirstChild("RightWalls")
+        if not rw then return end
+
+        local rw7 = rw:FindFirstChild("RightWall7")
+        if not rw7 then return end
+
+        for _,i in ipairs({14,12,13,11}) do
+            local p = rw7:GetChildren()[i]
+            if p and p:IsA("BasePart") and p.Size.Z ~= 1200 then
+                p.Size = Vector3.new(p.Size.X, p.Size.Y, 1200)
+            end
+        end
+    end
+
+    local function fixAll()
+        local dm1 = w:FindFirstChild("DefaultMap")
+        fixMap(dm1)
+
+        local mm = w:FindFirstChild("MoneyMap")
+        if mm then
+            local dm2 = mm:FindFirstChild("DefaultStudioMap")
+            fixMap(dm2)
+        end
+    end
+
+    fixAll()
+
+    w.DescendantAdded:Connect(function(x)
+        if x:IsA("BasePart") then
+            task.wait()
+            fixAll()
+        end
+    end)
+end)
