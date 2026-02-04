@@ -80,15 +80,15 @@ local function fb()
 end
 
 local ar = {
-    Celestial = Vector3.new(2763,4,-140),
-    Secret    = Vector3.new(2465,4,-139),
-    Cosmic    = Vector3.new(1990,4,-139),
-    Mythical  = Vector3.new(1365,4,-139),
-    Legendary = Vector3.new(953,4,-139),
-    Epic      = Vector3.new(679,4,-139),
-    Rare      = Vector3.new(500,4,-139),
-    Uncommon  = Vector3.new(360,4,-139),
-    Common    = Vector3.new(257,4,-139),
+    Celestial = Vector3.new(2763,3,-137),
+    Secret    = Vector3.new(2465,3,-137),
+    Cosmic    = Vector3.new(1990,3,-137),
+    Mythical  = Vector3.new(1365,3,-137),
+    Legendary = Vector3.new(953,3,-137),
+    Epic      = Vector3.new(679,3,-137),
+    Rare      = Vector3.new(500,3,-137),
+    Uncommon  = Vector3.new(360,3,-137),
+    Common    = Vector3.new(257,3,-137),
 }
 
 local an = {
@@ -128,7 +128,7 @@ local function tb()
     local _,_,r = ch()
     local start = na(r.Position)
     if start then mv(start) end
-    mv(Vector3.new(153, 4, -137))
+    mv(Vector3.new(153, 3, -137))
 
     local b = fb()
     if b then
@@ -143,7 +143,7 @@ sec:AddButton("Teleport To Area + Unlock VIP Walls", function()
     if busy then return end
     busy = true
     vip()
-    mv(Vector3.new(153,4,-137))
+    mv(Vector3.new(153,3,-137))
     mv(ar[cur])
     busy = false
 end)
@@ -247,7 +247,7 @@ sec:AddToggle("Auto Carry Brainrots", function(v)
         task.spawn(function()
             while autoTakeBrainrots do
                 autoTake()
-                task.wait(0.1)
+                task.wait(0.3)
             end
         end)
     else
@@ -285,30 +285,23 @@ local function bringGold()
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
     local hrp = char.HumanoidRootPart
     
-    local paths = {
-        w:FindFirstChild("MoneyEventParts"),
-        w:FindFirstChild("MoneyMap"),
-        w.MoneyMap and w.MoneyMap:FindFirstChild("DefaultStudioMap")
-    }
-    
-    for _, folder in ipairs(paths) do
-        if folder then
-            for _, part in ipairs(folder:GetDescendants()) do
-                if part:IsA("BasePart") and part.Name == "GoldBar" then
-                    pcall(function()
-                        part.Anchored = false
-                        part.CanCollide = false
-                        part.AssemblyLinearVelocity = Vector3.new()
-                        part.AssemblyAngularVelocity = Vector3.new()
-                        part.CFrame = hrp.CFrame * CFrame.new(math.random(-5,5), 3, math.random(-5,5))
-                    end)
-                end
+    local moneyEventParts = w:FindFirstChild("MoneyEventParts")
+    if moneyEventParts then
+        for _, part in ipairs(moneyEventParts:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name == "Main" and part.Parent and part.Parent.Name == "GoldBar" then
+                pcall(function()
+                    part.Anchored = false
+                    part.CanCollide = false
+                    part.AssemblyLinearVelocity = Vector3.new()
+                    part.AssemblyAngularVelocity = Vector3.new()
+                    part.CFrame = hrp.CFrame * CFrame.new(math.random(-5,5), 3, math.random(-5,5))
+                end)
             end
         end
     end
     
     for _, part in ipairs(w:GetDescendants()) do
-        if part:IsA("BasePart") and part.Name == "GoldBar" then
+        if part:IsA("BasePart") and part.Name == "Main" and part.Parent and part.Parent.Name == "GoldBar" then
             pcall(function()
                 part.Anchored = false
                 part.CanCollide = false
@@ -333,7 +326,7 @@ sec:AddToggle("Auto Bring All Gold (MoneyEvent)", function(v)
 end)
 
 w.DescendantAdded:Connect(function(obj)
-    if bringGoldBar and obj.Name == "GoldBar" and obj:IsA("BasePart") then
+    if bringGoldBar and obj:IsA("BasePart") and obj.Name == "Main" and obj.Parent and obj.Parent.Name == "GoldBar" and obj.Parent.Parent and obj.Parent.Parent.Name == "MoneyEventParts" then
         task.spawn(function()
             task.wait(0.1)
             local char = lp.Character
