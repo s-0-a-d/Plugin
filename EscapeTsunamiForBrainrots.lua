@@ -347,25 +347,35 @@ task.spawn(function()
     local function fixMap(dm)
         if not dm then return end
 
+        for _, mud in ipairs(dm:GetDescendants()) do
+            if mud.Name == "Mud" and mud:IsA("BasePart") then
+                local pos = mud.Position
+                if pos.Y > 20 and pos.X > 2500 and math.abs(pos.Z + 135) < 10 then
+                    mud:Destroy()
+                end
+            end
+        end
+
+        local rw = dm:FindFirstChild("RightWalls")
+        if rw then
+            for _, wall in ipairs(rw:GetDescendants()) do
+                if wall:IsA("BasePart") and (wall.Name == "Part" or wall.Name == "Bottom") then
+                    local pos = wall.Position
+                    if math.abs(pos.Z + 135) < 20 and math.abs(pos.X - 2430) < 50 then
+                        if wall.Size.Z < 1200 then
+                            wall.Size = Vector3.new(wall.Size.X, wall.Size.Y, 1200)
+                        end
+                    end
+                end
+            end
+        end
+
         local wl = dm:FindFirstChild("Walls")
         if wl then
             local c6 = wl:GetChildren()[6]
             if c6 then
                 local p = c6:GetChildren()[5]
                 if p then p:Destroy() end
-            end
-        end
-
-        local rw = dm:FindFirstChild("RightWalls")
-        if not rw then return end
-
-        local rw7 = rw:FindFirstChild("RightWall7")
-        if not rw7 then return end
-
-        for _,i in ipairs({14,12,13,11}) do
-            local p = rw7:GetChildren()[i]
-            if p and p:IsA("BasePart") and p.Size.Z ~= 1200 then
-                p.Size = Vector3.new(p.Size.X, p.Size.Y, 1200)
             end
         end
     end
