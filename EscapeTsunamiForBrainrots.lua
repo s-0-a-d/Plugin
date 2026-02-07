@@ -15,15 +15,39 @@ local function ch()
 end
 
 local function vip()
-    local v = w:FindFirstChild("VIPWalls")
-    if not v then return end
-    for _,x in ipairs(v:GetDescendants()) do
+    local mapFolder = w:FindFirstChild("DefaultMap_SharedInstances")
+    if not mapFolder then
+        mapFolder = w:FindFirstChild("DefaultMap")
+    end
+    if not mapFolder then return end
+    
+    local vipWalls = mapFolder:FindFirstChild("VIPWalls")
+    if not vipWalls then return end
+
+    local function disablePart(x)
         if x:IsA("BasePart") then
             x.CanCollide = false
-        elseif x:IsA("TouchTransmitter") then
+            x.CanTouch = false
+            x.CanQuery = false
+        elseif x:IsA("TouchTransmitter") or x:IsA("ClickDetector") then
             x:Destroy()
         end
     end
+
+    for _, x in ipairs(vipWalls:GetDescendants()) do
+        disablePart(x)
+    end
+
+    vipWalls.DescendantAdded:Connect(disablePart)
+
+    mapFolder.DescendantAdded:Connect(function(child)
+        if child.Name == "VIPWalls" then
+            for _, x in ipairs(child:GetDescendants()) do
+                disablePart(x)
+            end
+            child.DescendantAdded:Connect(disablePart)
+        end
+    end)
 end
 
 local spd = 2000
@@ -38,8 +62,7 @@ local function mv(pos)
     local _,_,r = ch()
     nc(true)
 
-    local y = r.Position.Y
-    local target = Vector3.new(pos.X, y, pos.Z)
+    local target = pos
 
     while true do
         local dt = rs.Heartbeat:Wait()
@@ -80,7 +103,7 @@ local function fb()
 end
 
 local ar = {
-    Celestial = Vector3.new(2763,3,-137),
+    Celestial = Vector3.new(2763,52,-140),
     Secret    = Vector3.new(2465,3,-137),
     Cosmic    = Vector3.new(1990,3,-137),
     Mythical  = Vector3.new(1365,3,-137),
@@ -111,11 +134,11 @@ end)
 
 local function na(pos)
     local b, d
-    for _,v in pairs(ar) do
+    for k,v in pairs(ar) do
         local m = (v - pos).Magnitude
         if not d or m < d then
             d = m
-            b = v
+            b = {key = k, pos = v}
         end
     end
     return b
@@ -126,10 +149,17 @@ local function tb()
     busy = true
 
     local _,_,r = ch()
-    local start = na(r.Position)
-    if start then mv(start) end
-    mv(Vector3.new(153, 3, -137))
-
+    local nearest = na(r.Position)
+    local nearest_pos = nearest.pos
+    if nearest.key == "Celestial" then
+        nearest_pos = Vector3.new(2617, 3, -139)
+    end
+    if nearest_pos then
+        mv(nearest_pos)
+    end
+    local up_pos = Vector3.new(nearest_pos.X, 52, -140)
+    mv(up_pos)
+    mv(Vector3.new(152, 52, -140))
     local b = fb()
     if b then
         local cf = b:GetPivot()
@@ -143,12 +173,27 @@ sec:AddButton("Teleport To Area + Unlock VIP Walls", function()
     if busy then return end
     busy = true
     vip()
-    mv(Vector3.new(153,3,-137))
-    mv(ar[cur])
+    if cur == "Celestial" then
+        mv(Vector3.new(152, 52, -140))
+        mv(ar[cur])
+        local old_spd = spd
+        spd = 4000
+        local down_pos = Vector3.new(ar[cur].X, -2, ar[cur].Z)
+        mv(down_pos)
+        spd = old_spd
+        mv(Vector3.new(2617, -2, -69))
+    else
+        mv(Vector3.new(152, 52, -140))
+        local high_pos = Vector3.new(ar[cur].X, 52, -140)
+        mv(high_pos)
+        mv(ar[cur])
+    end
     busy = false
 end)
 
-sec:AddButton("Teleport Back To Base", tb)
+sec:AddButton("Teleport To Base", tb)
+
+sec:AddKeybind("Teleport To Base Key", Enum.KeyCode.B, tb)
 
 local gui, btn
 local drag, ds, sp = false, nil, nil
@@ -209,8 +254,6 @@ sec:AddToggle("Show Teleport Button", function(v)
         if gui then gui:Destroy() gui = nil btn = nil end
     end
 end)
-
-sec:AddKeybind("Teleport To Base Key", Enum.KeyCode.B, tb)
 
 local autoTakeBrainrots = false
 local firedPrompts = {}
@@ -280,6 +323,8 @@ w.DescendantAdded:Connect(function(desc)
     end
 end)
 
+local bringGoldBar = false
+
 local function bringGold()
     local char = lp.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
@@ -341,57 +386,4 @@ w.DescendantAdded:Connect(function(obj)
             end
         end)
     end
-end)
-
-task.spawn(function()
-    local function fixMap(dm)
-        if not dm then return end
-
-        for _, mud in ipairs(dm:GetDescendants()) do
-            if mud.Name == "Mud" and mud:IsA("BasePart") then
-                local pos = mud.Position
-                if pos.Y > 20 and pos.X > 2500 and math.abs(pos.Z + 135) < 10 then
-                    mud:Destroy()
-                end
-            end
-        end
-
-        local rw = dm:FindFirstChild("RightWalls")
-        if rw then
-            for _, wall in ipairs(rw:GetDescendants()) do
-                if wall:IsA("BasePart") and (wall.Name == "Part" or wall.Name == "Bottom") then
-                    local pos = wall.Position
-                    if math.abs(pos.Z + 135) < 20 and math.abs(pos.X - 2430) < 50 then
-                        if wall.Size.Z < 1200 then
-                            wall.Size = Vector3.new(wall.Size.X, wall.Size.Y, 1200)
-                        end
-                    end
-                end
-            end
-        end
-
-        local wl = dm:FindFirstChild("Walls")
-        if wl then
-            local c6 = wl:GetChildren()[6]
-            if c6 then
-                local p = c6:GetChildren()[5]
-                if p then p:Destroy() end
-            end
-        end
-    end
-
-    local function fixAll()
-        fixMap(w:FindFirstChild("DefaultMap"))
-        local mm = w:FindFirstChild("MoneyMap")
-        if mm then fixMap(mm:FindFirstChild("DefaultStudioMap")) end
-    end
-
-    fixAll()
-
-    w.DescendantAdded:Connect(function(x)
-        if x:IsA("BasePart") then
-            task.wait()
-            fixAll()
-        end
-    end)
 end)
