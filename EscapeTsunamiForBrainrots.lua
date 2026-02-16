@@ -2,6 +2,7 @@ local s = odh_shared_plugins
 local p = game:GetService("Players")
 local w = game:GetService("Workspace")
 local rs = game:GetService("RunService")
+local ts = game:GetService("TweenService")
 
 if s.game_name ~= "Escape Tsunami For Brainrots" then return end
 
@@ -166,7 +167,7 @@ end
 local function mv(pos, keepY)
     local _, hum, r = ch()
     nc(true)
-    spd = math.min(hum.WalkSpeed * 6, 3000)
+    spd = math.min(hum.WalkSpeed * 6, 2000)
     local target = keepY and Vector3.new(pos.X, r.Position.Y, pos.Z) or pos
     while true do
         local dt = rs.Heartbeat:Wait()
@@ -362,8 +363,6 @@ sec:AddDropdown("Rarity", raritiesList, function(v)
     selectedRarity = v
 end)
 
-local autoFarm = false
-
 local function getService(name)
     local s = game:GetService(name)
     return (cloneref and cloneref(s)) or s
@@ -396,49 +395,57 @@ sec:AddToggle("Auto Farm", function(state)
                         return 
                     end
 
+                    if busy then return end
+
                     if isCarrying() then
+                        busy = true
                         local base = fb()
                         if base then
                             local bPos = base:GetPivot().Position
-                            mv(Vector3.new(bPos.X, -30, bPos.Z), true)
+                            mv(Vector3.new(root.Position.X, -45, root.Position.Z), false)
+                            mv(Vector3.new(bPos.X, -45, bPos.Z), true)
                             mv(bPos + Vector3.new(0, 5, 0), false)
-                            task.wait(0.5)
+                            repeat task.wait(0.1) until not isCarrying() or not autoFarm
+                            task.wait(0.3)
                         end
-                    end
-
-                    local folder = w:FindFirstChild("ActiveBrainrots") and w.ActiveBrainrots:FindFirstChild(selectedRarity)
-                    if folder then
-                        local targets = {}
-                        for _, model in ipairs(folder:GetChildren()) do
-                            if model.Name == "RenderedBrainrot" and model:FindFirstChild("Root") then
-                                local prompt = model.Root:FindFirstChild("TakePrompt")
-                                if prompt and prompt.Enabled then
-                                    table.insert(targets, {
-                                        obj = model.Root, 
-                                        pos = model.Root.Position, 
-                                        dist = (model.Root.Position - root.Position).Magnitude
-                                    })
+                        busy = false
+                    else
+                        local folder = w:FindFirstChild("ActiveBrainrots") and w.ActiveBrainrots:FindFirstChild(selectedRarity)
+                        if folder then
+                            local targets = {}
+                            for _, model in ipairs(folder:GetChildren()) do
+                                if model.Name == "RenderedBrainrot" and model:FindFirstChild("Root") then
+                                    local prompt = model.Root:FindFirstChild("TakePrompt")
+                                    if prompt and prompt.Enabled then
+                                        table.insert(targets, {
+                                            obj = model.Root, 
+                                            pos = model.Root.Position, 
+                                            dist = (model.Root.Position - root.Position).Magnitude
+                                        })
+                                    end
                                 end
                             end
-                        end
-                        
-                        table.sort(targets, function(a, b) return a.dist < b.dist end)
-                        
-                        local target = targets[1]
-                        if target and autoFarm and not busy then
-                            busy = true
-                            mv(Vector3.new(root.Position.X, -30, root.Position.Z), false)
-                            mv(Vector3.new(target.pos.X, -30, target.pos.Z), true)
-                            mv(target.pos, false)
                             
-                            task.wait(0.2)
-                            if target.obj:FindFirstChild("TakePrompt") then
-                                fireproximityprompt(target.obj.TakePrompt)
+                            table.sort(targets, function(a, b) return a.dist < b.dist end)
+                            
+                            local target = targets[1]
+                            if target and autoFarm then
+                                busy = true
+                                mv(Vector3.new(root.Position.X, -45, root.Position.Z), false)
+                                mv(Vector3.new(target.pos.X, -45, target.pos.Z), true)
+                                mv(target.pos, false)
+                                
+                                task.wait(0.2)
+                                if target.obj:FindFirstChild("TakePrompt") then
+                                    fireproximityprompt(target.obj.TakePrompt)
+                                end
+                                
+                                local startTime = tick()
+                                repeat task.wait(0.1) until isCarrying() or (tick() - startTime > 2) or not autoFarm
+                                
+                                mv(Vector3.new(target.pos.X, -45, target.pos.Z), false)
+                                busy = false
                             end
-                            
-                            task.wait(0.2)
-                            mv(Vector3.new(target.pos.X, -30, target.pos.Z), false)
-                            busy = false
                         end
                     end
                 end)
@@ -447,7 +454,7 @@ sec:AddToggle("Auto Farm", function(state)
                     busy = false 
                 end
                 
-                task.wait(0.5)
+                task.wait(0.3)
             end
         end)
     else
