@@ -159,16 +159,10 @@ end
 local spd = 2000
 local busy = false
 
-local function nc(v)
-    local _,_,r = ch()
-    r.CanCollide = not v
-end
-
-local function mv(pos, keepY)
+local function mv(pos)
     local _, hum, r = ch()
-    nc(true)
     spd = math.min(hum.WalkSpeed * 6, 2000)
-    local target = keepY and Vector3.new(pos.X, r.Position.Y, pos.Z) or pos
+    local target = pos
     while true do
         local dt = rs.Heartbeat:Wait()
         local diff = target - r.Position
@@ -180,7 +174,6 @@ local function mv(pos, keepY)
     end
     r.AssemblyLinearVelocity = Vector3.zero
     r.CFrame = CFrame.new(target)
-    nc(false)
 end
 
 local function fb()
@@ -237,20 +230,20 @@ local function tb()
     local _,_,r = ch()
     local nearest = na(r.Position)
     local nearest_pos = nearest.pos
-    mv(nearest_pos, true)
-    mv(Vector3.new(nearest_pos.X, 3, -137), false)
-    mv(Vector3.new(152, 3, -137), false)
+    mv(nearest_pos)
+    mv(Vector3.new(nearest_pos.X, 3, -137))
+    mv(Vector3.new(152, 3, -137))
     local b = fb()
-    if b then mv(b:GetPivot().Position + Vector3.new(0,5,0), false) end
+    if b then mv(b:GetPivot().Position + Vector3.new(0,5,0)) end
     busy = false
 end
 
 sec:AddButton("Teleport To Area + Unlock VIP Walls", function()
     if busy then return end
     busy = true
-    mv(Vector3.new(152, 3, -137), false)
-    mv(Vector3.new(ar[cur].X, 3, -137), false)
-    mv(ar[cur], false)
+    mv(Vector3.new(152, 3, -137))
+    mv(Vector3.new(ar[cur].X, 3, -137))
+    mv(ar[cur])
     busy = false
 end)
 
@@ -363,11 +356,6 @@ sec:AddDropdown("Rarity", raritiesList, function(v)
     selectedRarity = v
 end)
 
-local function getService(name)
-    local s = game:GetService(name)
-    return (cloneref and cloneref(s)) or s
-end
-
 local function getCharData()
     local c = lp.Character or lp.CharacterAdded:Wait()
     local h = c:WaitForChild("Humanoid", 5)
@@ -386,29 +374,36 @@ sec:AddToggle("Auto Farm", function(state)
     if autoFarm then
         task.spawn(function()
             while autoFarm do
-                local success, result = pcall(function()
+                pcall(function()
                     local char, hum, root = getCharData()
                     
-                    if not char or hum.Health <= 0 then 
+                    if not char or not hum or hum.Health <= 0 then 
                         busy = false
-                        task.wait(1) 
+                        task.wait(3)
                         return 
                     end
 
-                    if busy then return end
+                    if busy then 
+                        task.wait(0.1)
+                        return 
+                    end
+
+                    busy = true
+                    local safeY = -80
+                    
+                    mv(Vector3.new(root.Position.X, safeY, root.Position.Z))
 
                     if isCarrying() then
-                        busy = true
                         local base = fb()
                         if base then
                             local bPos = base:GetPivot().Position
-                            mv(Vector3.new(root.Position.X, -45, root.Position.Z), false)
-                            mv(Vector3.new(bPos.X, -45, bPos.Z), true)
-                            mv(bPos + Vector3.new(0, 5, 0), false)
-                            repeat task.wait(0.1) until not isCarrying() or not autoFarm
-                            task.wait(0.3)
+                            mv(Vector3.new(bPos.X, safeY, bPos.Z))
+                            mv(bPos + Vector3.new(0, 8, 0))
+                            local startTime = tick()
+                            repeat task.wait(0.05) until not isCarrying() or (tick() - startTime > 4) or not autoFarm
+                            task.wait(0.2)
+                            mv(Vector3.new(bPos.X, safeY, bPos.Z))
                         end
-                        busy = false
                     else
                         local folder = w:FindFirstChild("ActiveBrainrots") and w.ActiveBrainrots:FindFirstChild(selectedRarity)
                         if folder then
@@ -429,32 +424,32 @@ sec:AddToggle("Auto Farm", function(state)
                             table.sort(targets, function(a, b) return a.dist < b.dist end)
                             
                             local target = targets[1]
-                            if target and autoFarm then
-                                busy = true
-                                mv(Vector3.new(root.Position.X, -45, root.Position.Z), false)
-                                mv(Vector3.new(target.pos.X, -45, target.pos.Z), true)
-                                mv(target.pos, false)
+                            if target and autoFarm and target.obj and target.obj.Parent then
+                                local safePos = Vector3.new(target.pos.X, safeY, target.pos.Z)
+                                mv(safePos)
+                                mv(target.pos)
                                 
-                                task.wait(0.2)
-                                if target.obj:FindFirstChild("TakePrompt") then
-                                    fireproximityprompt(target.obj.TakePrompt)
+                                task.wait(0.1)
+                                local prompt = target.obj:FindFirstChild("TakePrompt")
+                                if prompt then
+                                    for i = 1, 5 do
+                                        fireproximityprompt(prompt)
+                                        task.wait(0.05)
+                                        if isCarrying() then break end
+                                    end
                                 end
                                 
                                 local startTime = tick()
-                                repeat task.wait(0.1) until isCarrying() or (tick() - startTime > 2) or not autoFarm
+                                repeat task.wait(0.05) until isCarrying() or (tick() - startTime > 4) or not autoFarm
                                 
-                                mv(Vector3.new(target.pos.X, -45, target.pos.Z), false)
-                                busy = false
+                                mv(safePos)
                             end
                         end
                     end
+                    busy = false
                 end)
-
-                if not success then
-                    busy = false 
-                end
                 
-                task.wait(0.3)
+                task.wait(0.1)
             end
         end)
     else
