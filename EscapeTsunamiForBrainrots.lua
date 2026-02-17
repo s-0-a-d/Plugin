@@ -12,21 +12,15 @@ local sec = s.AddSection("TSUNAMI")
 
 task.spawn(function()
     local targetPos = Vector3.new(2384.8999, 32.0000153, 134.975052)
-    
     local currentDM = nil
     local currentShared = nil
     
     local function applyChanges(dm, sharedFolder)
         if not dm or not dm.Parent then return end
-        
-        if dm:FindFirstChild("RightWalls") then
-            dm.RightWalls:Destroy()
-        end
+        if dm:FindFirstChild("RightWalls") then dm.RightWalls:Destroy() end
         
         local vipFolder = sharedFolder or dm
-        if vipFolder:FindFirstChild("VIPWalls") then
-            vipFolder.VIPWalls:Destroy()
-        end
+        if vipFolder:FindFirstChild("VIPWalls") then vipFolder.VIPWalls:Destroy() end
         
         local gaps = dm:FindFirstChild("Gaps")
         if gaps then
@@ -156,12 +150,11 @@ local function ch()
     return c, c:WaitForChild("Humanoid"), c:WaitForChild("HumanoidRootPart")
 end
 
-local spd = 2000
 local busy = false
 
 local function mv(pos)
     local _, hum, r = ch()
-    spd = math.min(hum.WalkSpeed * 6, 2000)
+    spd = math.min(hum.WalkSpeed * 6, 1555)
     local target = pos
     while true do
         local dt = rs.Heartbeat:Wait()
@@ -303,7 +296,7 @@ local function autoTake()
         if obj:IsA("ProximityPrompt") and not firedPrompts[obj] then
             local pn = obj.Name
             local pp = obj.Parent and obj.Parent.Name or ""
-            if (pn == "TakePrompt" and pp == "Root") or (pn == "ProximityPrompt" and pp == "RootPart") then
+            if (pn == "TakePrompt" and pp == "Root") then
                 pcall(function()
                     fireproximityprompt(obj)
                     firedPrompts[obj] = true
@@ -331,7 +324,7 @@ w.DescendantAdded:Connect(function(desc)
     if autoTakeBrainrots and desc:IsA("ProximityPrompt") and not firedPrompts[desc] then
         local pn = desc.Name
         local pp = desc.Parent and desc.Parent.Name or ""
-        if (pn == "TakePrompt" and pp == "Root") or (pn == "ProximityPrompt" and pp == "RootPart") then
+        if pn == "TakePrompt" and pp == "Root" then
             task.spawn(function()
                 task.wait(0.1)
                 pcall(function()
@@ -343,116 +336,159 @@ w.DescendantAdded:Connect(function(desc)
     end
 end)
 
-sec:AddLabel("Auto Farm")
-
-local raritiesList = {
-    "Infinity", "Divine", "Celestial", "Secret", "Cosmic", "Mythical", "Legendary",
-    "Epic", "Rare", "Uncommon", "Common"
+local autoFarmEnabled = false
+local rarityList = {
+    "Infinity",
+    "Divine",
+    "Celestial",
+    "Secret",
+    "Cosmic",
+    "Mythical",
+    "Legendary",
+    "Epic",
+    "Rare",
+    "Uncommon",
+    "Common"
 }
 
-local selectedRarity = raritiesList[1]
+local selectedRarity = rarityList[#rarityList]
 
-sec:AddDropdown("Rarity", raritiesList, function(v)
+sec:AddDropdown("Rarity Auto Farm", rarityList, function(v)
     selectedRarity = v
 end)
 
-local function getCharData()
-    local c = lp.Character or lp.CharacterAdded:Wait()
-    local h = c:WaitForChild("Humanoid", 5)
-    local r = c:WaitForChild("HumanoidRootPart", 5)
-    return c, h, r
+local ab = workspace:FindFirstChild("ActiveBrainrots")
+if ab then
+    for _,v in ipairs(ab:GetChildren()) do
+        if v:IsA("Folder") then
+            table.insert(rarityList, v.Name)
+        end
+    end
 end
 
-local function isCarrying()
-    local c = lp.Character
-    if not c then return false end
-    return c:FindFirstChild("RenderedBrainrot") ~= nil or c:FindFirstChildWhichIsA("Tool") ~= nil
+local function isBrainrotAlive(m, rarityFolder)
+    if not m then return false end
+    if not m.Parent then return false end
+    if not m:IsDescendantOf(workspace) then return false end
+    if not rarityFolder or not m:IsDescendantOf(rarityFolder) then return false end
+
+    local root = m:FindFirstChild("Root") or m:FindFirstChild("RootPart")
+    if not root or not root.Parent then return false end
+
+    local prompt = root:FindFirstChild("TakePrompt") or root:FindFirstChildWhichIsA("ProximityPrompt")
+    if not prompt or not prompt.Parent then return false end
+
+    return true, root, prompt
 end
 
-sec:AddToggle("Auto Farm", function(state)
-    autoFarm = state
-    if autoFarm then
-        task.spawn(function()
-            while autoFarm do
-                pcall(function()
-                    local char, hum, root = getCharData()
-                    
-                    if not char or not hum or hum.Health <= 0 then 
-                        busy = false
-                        task.wait(3)
-                        return 
-                    end
+local function findNextBrainrot(rarityFolder)
+    if not rarityFolder then return nil end
 
-                    if busy then 
-                        task.wait(0.1)
-                        return 
-                    end
-
-                    busy = true
-                    local safeY = -80
-                    
-                    mv(Vector3.new(root.Position.X, safeY, root.Position.Z))
-
-                    if isCarrying() then
-                        local base = fb()
-                        if base then
-                            local bPos = base:GetPivot().Position
-                            mv(Vector3.new(bPos.X, safeY, bPos.Z))
-                            mv(bPos + Vector3.new(0, 8, 0))
-                            local startTime = tick()
-                            repeat task.wait(0.05) until not isCarrying() or (tick() - startTime > 4) or not autoFarm
-                            task.wait(0.2)
-                            mv(Vector3.new(bPos.X, safeY, bPos.Z))
-                        end
-                    else
-                        local folder = w:FindFirstChild("ActiveBrainrots") and w.ActiveBrainrots:FindFirstChild(selectedRarity)
-                        if folder then
-                            local targets = {}
-                            for _, model in ipairs(folder:GetChildren()) do
-                                if model.Name == "RenderedBrainrot" and model:FindFirstChild("Root") then
-                                    local prompt = model.Root:FindFirstChild("TakePrompt")
-                                    if prompt and prompt.Enabled then
-                                        table.insert(targets, {
-                                            obj = model.Root, 
-                                            pos = model.Root.Position, 
-                                            dist = (model.Root.Position - root.Position).Magnitude
-                                        })
-                                    end
-                                end
-                            end
-                            
-                            table.sort(targets, function(a, b) return a.dist < b.dist end)
-                            
-                            local target = targets[1]
-                            if target and autoFarm and target.obj and target.obj.Parent then
-                                local safePos = Vector3.new(target.pos.X, safeY, target.pos.Z)
-                                mv(safePos)
-                                mv(target.pos)
-                                
-                                task.wait(0.1)
-                                local prompt = target.obj:FindFirstChild("TakePrompt")
-                                if prompt then
-                                    for i = 1, 5 do
-                                        fireproximityprompt(prompt)
-                                        task.wait(0.05)
-                                        if isCarrying() then break end
-                                    end
-                                end
-                                
-                                local startTime = tick()
-                                repeat task.wait(0.05) until isCarrying() or (tick() - startTime > 4) or not autoFarm
-                                
-                                mv(safePos)
-                            end
-                        end
-                    end
-                    busy = false
-                end)
-                
-                task.wait(0.1)
+    for _,m in ipairs(rarityFolder:GetChildren()) do
+        if m:IsA("Model") and m.Name == "RenderedBrainrot" then
+            local alive, root, prompt = isBrainrotAlive(m, rarityFolder)
+            if alive then
+                return m, root, prompt
             end
+        end
+    end
+
+    return nil
+end
+
+local function sampleZ(rarityFolder)
+    if not rarityFolder then return -137 end
+    for _,m in ipairs(rarityFolder:GetChildren()) do
+        if m:IsA("Model") and m.Name == "RenderedBrainrot" then
+            local root = m:FindFirstChild("Root") or m:FindFirstChild("RootPart") or m:FindFirstChildWhichIsA("BasePart")
+            if root then
+                return root:GetPivot().Position.Z
+            end
+        end
+    end
+    return -137
+end
+
+local function setNoclip(v)
+    local c = lp.Character
+    if not c then return end
+    for _,p in ipairs(c:GetDescendants()) do
+        if p:IsA("BasePart") then
+            p.CanCollide = not v
+        end
+    end
+end
+
+local function takeOne(rarityFolder)
+    local m, root, prompt = findNextBrainrot(rarityFolder)
+    if not m then return false end
+
+    local p = root:GetPivot().Position
+    local z = sampleZ(rarityFolder)
+
+    setNoclip(true)
+
+    pcall(function() mv(Vector3.new(152, -5, z)) end)
+
+    if not isBrainrotAlive(m, rarityFolder) then
+        setNoclip(false)
+        return false
+    end
+
+    pcall(function() mv(Vector3.new(p.X, -5, p.Z)) end)
+
+    task.wait(0.06)
+
+    local taken = false
+
+    for i = 1, 8 do
+        local alive, r2, pr2 = isBrainrotAlive(m, rarityFolder)
+        if not alive then
+            taken = true
+            break
+        end
+
+        pcall(function()
+            fireproximityprompt(pr2, 0.2)
         end)
-    else
-        busy = false
+
+        task.wait(0.06)
+
+        if not isBrainrotAlive(m, rarityFolder) then
+            taken = true
+            break
+        end
+    end
+
+    pcall(function() mv(Vector3.new(152, -5, z)) end)
+    task.wait(0.05)
+    pcall(function() mv(Vector3.new(152, 3, z)) end)
+
+    setNoclip(false)
+
+    return taken
+end
+
+local function autoFarmLoop()
+    task.spawn(function()
+        while autoFarmEnabled do
+            local ab = workspace:FindFirstChild("ActiveBrainrots")
+            if not ab then task.wait(0.5) continue end
+            local rf = ab:FindFirstChild(selectedRarity)
+            if not rf then task.wait(0.5) continue end
+            local ok = false
+            pcall(function() ok = takeOne(rf) end)
+            if not ok then task.wait(0.5) else task.wait(0.25) end
+        end
+    end)
+end
+
+sec:AddToggle("Auto Farm Brainrots", function(v)
+    autoFarmEnabled = v
+    if v then
+        if not selectedRarity and #rarityList > 0 then
+            selectedRarity = rarityList[1]
+        end
+        autoFarmLoop()
     end
 end)
