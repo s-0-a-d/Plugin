@@ -150,23 +150,76 @@ local function ch()
     return c, c:WaitForChild("Humanoid"), c:WaitForChild("HumanoidRootPart")
 end
 
-local busy = false
+local pussy = false
 
-local function mv(pos)
+local defaultSpeed = 1300
+local activeTween = nil
+
+local function mv(pos, speed)
+    speed = speed or defaultSpeed
     local _, hum, r = ch()
-    spd = math.min(hum.WalkSpeed * 6, 1555)
-    local target = pos
+    if not r or not r.Parent then return end
+
+    local dist = (r.Position - pos).Magnitude
+    if dist <= 2 then
+        r.AssemblyLinearVelocity = Vector3.zero
+        r.CFrame = CFrame.new(pos)
+        return
+    end
+
+    if activeTween then
+        pcall(function() activeTween:Cancel() end)
+        activeTween = nil
+    end
+
+    local duration = math.max(0.03, dist / math.max(1, speed))
+
+    local ok, tween = pcall(function()
+        return ts:Create(r, TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {CFrame = CFrame.new(pos)})
+    end)
+
+    if ok and tween then
+        activeTween = tween
+        tween:Play()
+
+        local t0 = tick()
+        while tick() - t0 < duration do
+            if not r.Parent then break end
+            rs.Heartbeat:Wait()
+        end
+
+        pcall(function()
+            tween:Cancel()
+        end)
+        activeTween = nil
+
+        if r.Parent then
+            r.AssemblyLinearVelocity = Vector3.zero
+            r.CFrame = CFrame.new(pos)
+        end
+        return
+    end
+
+    local spd = defaultSpeed
+    if speed and speed > 0 then
+        spd = math.min(spd, speed)
+    end
+
     while true do
         local dt = rs.Heartbeat:Wait()
-        local diff = target - r.Position
-        local dist = diff.Magnitude
-        if dist <= 2 then break end
-        local step = math.min(spd * dt, dist)
-        r.AssemblyLinearVelocity = Vector3.zero
-        r.CFrame = CFrame.new(r.Position + diff.Unit * step)
+        if not r.Parent then break end
+        local diff = pos - r.Position
+        local d = diff.Magnitude
+        if d <= 2 then break end
+        local step = math.min(spd * dt, d)
+        r.AssemblyLinearVelocity = Vector3.new(0,0,0)
+        r.CFrame = CFrame.new(r.Position + (diff.Unit * step))
     end
-    r.AssemblyLinearVelocity = Vector3.zero
-    r.CFrame = CFrame.new(target)
+
+    if r.Parent then
+        r.AssemblyLinearVelocity = Vector3.zero
+        r.CFrame = CFrame.new(pos)
+    end
 end
 
 local function fb()
@@ -218,8 +271,8 @@ local function na(pos)
 end
 
 local function tb()
-    if busy then return end
-    busy = true
+    if pussy then return end
+    pussy = true
     local _,_,r = ch()
     local nearest = na(r.Position)
     local nearest_pos = nearest.pos
@@ -228,20 +281,20 @@ local function tb()
     mv(Vector3.new(152, 3, -137))
     local b = fb()
     if b then mv(b:GetPivot().Position + Vector3.new(0,5,0)) end
-    busy = false
+    pussy = false
 end
 
 sec:AddButton("Teleport To Area + Unlock VIP Walls", function()
-    if busy then return end
-    busy = true
+    if pussy then return end
+    pussy = true
     mv(Vector3.new(152, 3, -137))
     mv(Vector3.new(ar[cur].X, 3, -137))
     mv(ar[cur])
-    busy = false
+    pussy = false
 end)
 
 sec:AddButton("Teleport To Base", tb)
-sec:AddKeybind("Teleport To Base Key", Enum.KeyCode.B, tb)
+sec:AddKeybind("Teleport To Base Key",B, tb)
 
 local gui, btn
 local drag, ds, sp = false, nil, nil
@@ -368,15 +421,19 @@ end
 
 local function isBrainrotAlive(m, rarityFolder)
     if not m then return false end
-    if not m.Parent then return false end
+    if not m.Parent or m.Parent ~= rarityFolder then return false end
     if not m:IsDescendantOf(workspace) then return false end
-    if not rarityFolder or not m:IsDescendantOf(rarityFolder) then return false end
 
-    local root = m:FindFirstChild("Root") or m:FindFirstChild("RootPart")
+    local root = m:FindFirstChild("Root")
     if not root or not root.Parent then return false end
+    if not root:IsDescendantOf(workspace) then return false end
 
-    local prompt = root:FindFirstChild("TakePrompt") or root:FindFirstChildWhichIsA("ProximityPrompt")
+    local prompt = root:FindFirstChild("TakePrompt")
     if not prompt or not prompt.Parent then return false end
+    if not prompt.Enabled then return false end
+
+    if root:FindFirstChildWhichIsA("Weld") then return false end
+    if m:FindFirstChild("Carried") then return false end
 
     return true, root, prompt
 end
@@ -409,50 +466,40 @@ local function sampleZ(rarityFolder)
     return -137
 end
 
-local function setNoclip(v)
-    local c = lp.Character
-    if not c then return end
-    for _,p in ipairs(c:GetDescendants()) do
-        if p:IsA("BasePart") then
-            p.CanCollide = not v
-        end
-    end
-end
-
 local function takeOne(rarityFolder)
     local m, root, prompt = findNextBrainrot(rarityFolder)
     if not m then return false end
 
-    local p = root:GetPivot().Position
-    local z = sampleZ(rarityFolder)
+    local pos = root.Position
+    local z = pos.Z
 
-    setNoclip(true)
-
-    pcall(function() mv(Vector3.new(152, -5, z)) end)
+    mv(Vector3.new(152, -5, z))
 
     if not isBrainrotAlive(m, rarityFolder) then
         setNoclip(false)
         return false
     end
 
-    pcall(function() mv(Vector3.new(p.X, -5, p.Z)) end)
-
-    task.wait(0.06)
+    mv(Vector3.new(pos.X, -5, pos.Z))
 
     local taken = false
 
-    for i = 1, 8 do
+    for i = 1, 10 do
         local alive, r2, pr2 = isBrainrotAlive(m, rarityFolder)
         if not alive then
             taken = true
             break
         end
 
-        pcall(function()
-            fireproximityprompt(pr2, 0.2)
-        end)
+        local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then break end
 
-        task.wait(0.06)
+        local dist = (hrp.Position - r2.Position).Magnitude
+        if dist <= (pr2.MaxActivationDistance + 1) then
+            fireproximityprompt(pr2, 0.22)
+        end
+
+        task.wait(0.05)
 
         if not isBrainrotAlive(m, rarityFolder) then
             taken = true
@@ -460,11 +507,9 @@ local function takeOne(rarityFolder)
         end
     end
 
-    pcall(function() mv(Vector3.new(152, -5, z)) end)
+    mv(Vector3.new(152, -5, z))
     task.wait(0.05)
-    pcall(function() mv(Vector3.new(152, 3, z)) end)
-
-    setNoclip(false)
+    mv(Vector3.new(152, 3, z))
 
     return taken
 end
