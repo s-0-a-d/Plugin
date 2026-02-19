@@ -476,7 +476,6 @@ local function takeOne(rarityFolder)
     mv(Vector3.new(152, -5, z))
 
     if not isBrainrotAlive(m, rarityFolder) then
-        setNoclip(false)
         return false
     end
 
