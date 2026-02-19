@@ -294,7 +294,7 @@ sec:AddButton("Teleport To Area + Unlock VIP Walls", function()
 end)
 
 sec:AddButton("Teleport To Base", tb)
-sec:AddKeybind("Teleport To Base Key",B, tb)
+sec:AddKeybind("Teleport To Base Key", "B", tb)
 
 local gui, btn
 local drag, ds, sp = false, nil, nil
