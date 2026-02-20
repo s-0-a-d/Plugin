@@ -286,6 +286,8 @@ w.DescendantAdded:Connect(function(desc)
     end
 end)
 
+sec:AddLabel("----- Auto Farm Brainrots -----")
+
 local autoFarmEnabled = false
 local rarityList = {
     "Infinity",
@@ -455,5 +457,233 @@ sec:AddToggle("Auto Farm Brainrots", function(v)
             selectedRarity = rarityList[1]
         end
         autoFarmLoop()
+    end
+end)
+
+sec:AddLabel("----- Auto Farm Lucky Blocks -----")
+
+local autoFarmLuckyRarityEnabled = false
+local autoFarmLuckySpecialEnabled = false
+
+local luckyRarityList = {
+    "Infinity", "Divine", "Celestial", "Secret", "Cosmic",
+    "Mythical", "Legendary", "Epic", "Rare", "Uncommon", "Common"
+}
+
+local luckySpecialList = {
+    "Admin", "Candy", "Gamer", "Money", "UFO",
+    "Radioactive", "Arcade", "Jackpot", "Alien"
+}
+
+local selectedLuckyRarity = luckyRarityList[#luckyRarityList]
+local selectedLuckySpecial = luckySpecialList[1]
+
+sec:AddDropdown("Lucky Block Rarity", luckyRarityList, function(v)
+    selectedLuckyRarity = v
+end)
+
+sec:AddDropdown("Lucky Block Special", luckySpecialList, function(v)
+    selectedLuckySpecial = v
+end)
+
+local function isLuckyBlockAlive(lbModel)
+    if not lbModel or not lbModel.Parent then return false end
+    if not lbModel:IsDescendantOf(workspace) then return false end
+
+    local root = lbModel:FindFirstChild("RootPart")
+    if not root or not root:IsDescendantOf(workspace) then return false end
+
+    local prompt = root:FindFirstChild("ProximityPrompt")
+    if not prompt or not prompt:IsA("ProximityPrompt") then return false end
+    if not prompt.Enabled then return false end
+
+    if root:FindFirstChildWhichIsA("Weld") then return false end
+
+    return true, root, prompt
+end
+
+local function findNextLuckyRarity(parentFolder)
+    if not parentFolder then return nil end
+
+    local candidates = {}
+    for _, model in ipairs(parentFolder:GetChildren()) do
+        if model:IsA("Model") then
+            if string.find(model.Name:lower(), selectedLuckyRarity:lower()) then
+                local alive, root, prompt = isLuckyBlockAlive(model)
+                if alive then
+                    table.insert(candidates, {
+                        model = model,
+                        root = root,
+                        prompt = prompt,
+                        pos = root.Position
+                    })
+                end
+            end
+        end
+    end
+
+    if #candidates == 0 then return nil end
+
+    table.sort(candidates, function(a, b)
+        return a.pos.X < b.pos.X
+    end)
+
+    return candidates[1].model, candidates[1].root, candidates[1].prompt
+end
+
+local function findNextLuckySpecial()
+    local alb = workspace:FindFirstChild("ActiveLuckyBlocks")
+    if not alb then return nil end
+
+    local candidates = {}
+    for _, model in ipairs(alb:GetChildren()) do
+        if model:IsA("Model") then
+            if string.find(model.Name:lower(), selectedLuckySpecial:lower()) then
+                local alive, root, prompt = isLuckyBlockAlive(model)
+                if alive then
+                    table.insert(candidates, {
+                        model = model,
+                        root = root,
+                        prompt = prompt,
+                        pos = root.Position
+                    })
+                end
+            end
+        end
+    end
+
+    if #candidates == 0 then return nil end
+
+    table.sort(candidates, function(a, b)
+        return a.pos.X < b.pos.X
+    end)
+
+    return candidates[1].model, candidates[1].root, candidates[1].prompt
+end
+
+local function takeLuckyBlock(targetModel, root, prompt)
+    if not targetModel then return false end
+
+    local pos = root.Position
+    local safeZ = -133
+
+    local alb = workspace:FindFirstChild("ActiveLuckyBlocks")
+    if alb then
+        for _, m in ipairs(alb:GetChildren()) do
+            if m:IsA("Model") and m ~= targetModel then
+                local r = m:FindFirstChild("RootPart")
+                if r then
+                    safeZ = r.Position.Z
+                    break
+                end
+            end
+        end
+    end
+
+    mv(Vector3.new(152, -7, safeZ))
+
+    local alive, r2, pr2 = isLuckyBlockAlive(targetModel)
+    if not alive then return false end
+
+    mv(Vector3.new(pos.X, -7, pos.Z))
+
+    alive, r2, pr2 = isLuckyBlockAlive(targetModel)
+    if not alive then return false end
+
+    local c, hum, hrp = ch()
+    if not hrp then return false end
+
+    lockCharacter(hum, hrp)
+
+    local taken = false
+    local max_attempts = 20
+    for i = 1, max_attempts do
+        alive, r2, pr2 = isLuckyBlockAlive(targetModel)
+        if not alive then
+            taken = true
+            break
+        end
+
+        if not hrp.Parent then break end
+
+        local dist = (hrp.Position - r2.Position).Magnitude
+        if dist <= (pr2.MaxActivationDistance + 5) then
+            pcall(function()
+                fireproximityprompt(pr2, 0)
+            end)
+        end
+
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+
+        task.wait(0.05)
+    end
+
+    unlockCharacter(hum)
+
+    if not taken then return false end
+
+    mv(Vector3.new(152, -7, safeZ))
+    task.wait(0.1)
+    mv(Vector3.new(152, 3, safeZ))
+
+    return true
+end
+
+local function autoFarmLuckyLoop()
+    task.spawn(function()
+        while autoFarmLuckyRarityEnabled or autoFarmLuckySpecialEnabled do
+            local alb = workspace:FindFirstChild("ActiveLuckyBlocks")
+            if not alb then
+                task.wait(0.6)
+                continue
+            end
+
+            local didAction = false
+
+            if autoFarmLuckySpecialEnabled then
+                local model, root, prompt = findNextLuckySpecial()
+                if model then
+                    local success = pcall(function()
+                        return takeLuckyBlock(model, root, prompt)
+                    end)
+                    if success then
+                        didAction = true
+                        task.wait(0.15)
+                    end
+                end
+            end
+
+            if autoFarmLuckyRarityEnabled and not didAction then
+                local model, root, prompt = findNextLuckyRarity(alb)
+                if model then
+                    local success = pcall(function()
+                        return takeLuckyBlock(model, root, prompt)
+                    end)
+                    if success then
+                        didAction = true
+                        task.wait(0.15)
+                    end
+                end
+            end
+
+            if not didAction then
+                task.wait(0.4)
+            end
+        end
+    end)
+end
+
+sec:AddToggle("Auto Farm Lucky Block (Rarity)", function(v)
+    autoFarmLuckyRarityEnabled = v
+    if (autoFarmLuckyRarityEnabled or autoFarmLuckySpecialEnabled) then
+        autoFarmLuckyLoop()
+    end
+end)
+
+sec:AddToggle("Auto Farm Lucky Block (Special)", function(v)
+    autoFarmLuckySpecialEnabled = v
+    if (autoFarmLuckyRarityEnabled or autoFarmLuckySpecialEnabled) then
+        autoFarmLuckyLoop()
     end
 end)
