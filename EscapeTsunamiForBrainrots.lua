@@ -10,144 +10,27 @@ local lp = p.LocalPlayer
 local pg = lp:WaitForChild("PlayerGui")
 local sec = s.AddSection("TSUNAMI")
 
-task.spawn(function()
-    local targetPos = Vector3.new(2384.8999, 32.0000153, 134.975052)
-    local currentDM = nil
-    local currentShared = nil
-    
-    local function applyChanges(dm, sharedFolder)
-        if not dm or not dm.Parent then return end
-        if dm:FindFirstChild("RightWalls") then dm.RightWalls:Destroy() end
-        
-        local vipFolder = sharedFolder or dm
-        if vipFolder:FindFirstChild("VIPWalls") then vipFolder.VIPWalls:Destroy() end
-        
-        local gaps = dm:FindFirstChild("Gaps")
-        if gaps then
-            for i = 1, 9 do
-                local gap = gaps:FindFirstChild("Gap" .. i)
-                if gap and gap:FindFirstChild("Mud") then
-                    local mud = gap.Mud
-                    if not mud:FindFirstChild("Script_Generated") then
-                        local bridge = Instance.new("Part")
-                        bridge.Name = "Script_Generated"
-                        bridge.Size = Vector3.new(mud.Size.X, mud.Size.Y, mud.Size.Z * 800)
-                        bridge.Anchored = true
-                        bridge.CanCollide = true
-                        bridge.Material = mud.Material
-                        bridge.Color = mud.Color
-                        bridge.CFrame = mud.CFrame * CFrame.new(0, 0, mud.Size.Z * 2)
-                        bridge.TopSurface = Enum.SurfaceType.Studs
-                        bridge.BottomSurface = Enum.SurfaceType.Inlet
-                        bridge.FrontSurface = Enum.SurfaceType.Smooth
-                        bridge.BackSurface = Enum.SurfaceType.Smooth
-                        bridge.LeftSurface = Enum.SurfaceType.Smooth
-                        bridge.RightSurface = Enum.SurfaceType.Smooth
-                        bridge.Parent = mud.Parent
-                    end
-                end
-            end
-        end
-        
-        local function createWall(x)
-            local wallName = "Script_Generated_Wall_" .. x
-            if dm:FindFirstChild(wallName) then return end
-            local wall = Instance.new("Part")
-            wall.Name = wallName
-            wall.Size = Vector3.new(100000, 100, 5)
-            wall.Position = Vector3.new(x, 7.93, -138.8)
-            wall.Anchored = true
-            wall.CanCollide = true
-            wall.Material = Enum.Material.Plastic
-            wall.Color = Color3.fromRGB(255, 170, 0)
-            wall.TopSurface = Enum.SurfaceType.Studs
-            wall.BottomSurface = Enum.SurfaceType.Inlet
-            wall.FrontSurface = Enum.SurfaceType.Smooth
-            wall.BackSurface = Enum.SurfaceType.Smooth
-            wall.LeftSurface = Enum.SurfaceType.Smooth
-            wall.RightSurface = Enum.SurfaceType.Smooth
-            wall.Parent = dm
-        end
-        
-        createWall(1180.3)
-        createWall(2000.3)
-        createWall(3000.3)
-        createWall(4000.3)
-        createWall(5000.3)
-    end
-    
-    local function destroyAtTarget(obj)
-        if obj.Name:match("^Script_Generated") then return end
-        if obj:IsA("BasePart") or obj:IsA("Model") then
-            local pos = obj:GetPivot().Position
-            if (pos - targetPos).Magnitude < 0.5 then
-                obj:Destroy()
-            end
-        end
-    end
-    
-    local function findCurrentMap()
-        for _, child in ipairs(w:GetChildren()) do
-            if child:IsA("Folder") and child.Name:match("_SharedInstances$") then
-                local mapName = child.Name:gsub("_SharedInstances$", "")
-                local dm = w:FindFirstChild(mapName)
-                if dm then
-                    currentDM = dm
-                    currentShared = child
-                    return true
-                end
-            end
-        end
-        return false
-    end
-    
-    local function initialDestroy()
-        for _, v in ipairs(w:GetDescendants()) do
-            destroyAtTarget(v)
-        end
-    end
-    
-    if findCurrentMap() then
-        applyChanges(currentDM, currentShared)
-        initialDestroy()
-    end
-    
-    w.ChildAdded:Connect(function(child)
-        if child.Name:match("_SharedInstances$") or (currentDM and child.Name == currentDM.Name) then
-            task.wait(0.8)
-            if findCurrentMap() then
-                applyChanges(currentDM, currentShared)
-                initialDestroy()
-            end
-        end
-    end)
-    
-    w.DescendantAdded:Connect(function(desc)
-        if currentDM and (desc:IsA("BasePart") or desc:IsA("Model")) then
-            task.delay(0.15, function()
-                if desc and desc.Parent then
-                    destroyAtTarget(desc)
-                end
-            end)
-        end
-    end)
-    
-    task.spawn(function()
-        while true do
-            task.wait(1)
-            if not currentDM or not currentDM.Parent then
-                findCurrentMap()
-            end
-            if currentDM then
-                applyChanges(currentDM, currentShared)
-            end
-        end
-    end)
-end)
-
 local function ch()
     local c = lp.Character or lp.CharacterAdded:Wait()
     return c, c:WaitForChild("Humanoid"), c:WaitForChild("HumanoidRootPart")
+end
+
+local function computeTweenSpeedFromWalkSpeed(walkSpeed)
+    if not walkSpeed then return defaultSpeed end
+
+    local speed
+    if walkSpeed <= 40 then
+        speed = walkSpeed * 10
+    elseif walkSpeed <= 120 then
+        speed = 400 + (walkSpeed - 40) * 6
+    else
+        speed = 880 + (walkSpeed - 120) * 3
+    end
+
+    speed = math.floor(speed + 0.5)
+    if speed > 2000 then speed = 2000 end
+    if speed < 50 then speed = 50 end
+    return speed
 end
 
 local pussy = false
@@ -155,10 +38,30 @@ local pussy = false
 local defaultSpeed = 1300
 local activeTween = nil
 
+local MAX_TWEEN_SPEED = 1555
+
+local function lockCharacter(hum, root)
+    hum.AutoRotate = false
+    hum.PlatformStand = true
+    root.AssemblyLinearVelocity = Vector3.zero
+    root.AssemblyAngularVelocity = Vector3.zero
+end
+
+local function unlockCharacter(hum)
+    hum.PlatformStand = false
+    hum.AutoRotate = true
+end
+
 local function mv(pos, speed)
-    speed = speed or defaultSpeed
-    local _, hum, r = ch()
+    local c, hum, r = ch()
     if not r or not r.Parent then return end
+
+    if not speed then
+        local ws = hum and hum.WalkSpeed
+        speed = computeTweenSpeedFromWalkSpeed(ws)
+    end
+
+    speed = math.clamp(speed, 50, MAX_TWEEN_SPEED)
 
     local dist = (r.Position - pos).Magnitude
     if dist <= 2 then
@@ -172,10 +75,16 @@ local function mv(pos, speed)
         activeTween = nil
     end
 
-    local duration = math.max(0.03, dist / math.max(1, speed))
+    local duration = math.max(0.03, dist / speed)
+
+    lockCharacter(hum, r)
 
     local ok, tween = pcall(function()
-        return ts:Create(r, TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {CFrame = CFrame.new(pos)})
+        return ts:Create(
+            r,
+            TweenInfo.new(duration, Enum.EasingStyle.Linear),
+            {CFrame = CFrame.new(pos)}
+        )
     end)
 
     if ok and tween then
@@ -185,41 +94,36 @@ local function mv(pos, speed)
         local t0 = tick()
         while tick() - t0 < duration do
             if not r.Parent then break end
+            r.AssemblyLinearVelocity = Vector3.zero
+            r.AssemblyAngularVelocity = Vector3.zero
             rs.Heartbeat:Wait()
         end
 
-        pcall(function()
-            tween:Cancel()
-        end)
+        pcall(function() tween:Cancel() end)
         activeTween = nil
+    else
+        while true do
+            local dt = rs.Heartbeat:Wait()
+            if not r.Parent then break end
 
-        if r.Parent then
+            local diff = pos - r.Position
+            local d = diff.Magnitude
+            if d <= 2 then break end
+
+            local step = math.min(speed * dt, d)
+            r.CFrame = CFrame.new(r.Position + diff.Unit * step)
             r.AssemblyLinearVelocity = Vector3.zero
-            r.CFrame = CFrame.new(pos)
+            r.AssemblyAngularVelocity = Vector3.zero
         end
-        return
-    end
-
-    local spd = defaultSpeed
-    if speed and speed > 0 then
-        spd = math.min(spd, speed)
-    end
-
-    while true do
-        local dt = rs.Heartbeat:Wait()
-        if not r.Parent then break end
-        local diff = pos - r.Position
-        local d = diff.Magnitude
-        if d <= 2 then break end
-        local step = math.min(spd * dt, d)
-        r.AssemblyLinearVelocity = Vector3.new(0,0,0)
-        r.CFrame = CFrame.new(r.Position + (diff.Unit * step))
     end
 
     if r.Parent then
-        r.AssemblyLinearVelocity = Vector3.zero
         r.CFrame = CFrame.new(pos)
+        r.AssemblyLinearVelocity = Vector3.zero
+        r.AssemblyAngularVelocity = Vector3.zero
     end
+
+    unlockCharacter(hum)
 end
 
 local function fb()
@@ -241,57 +145,50 @@ local function fb()
     return nil
 end
 
-local ar = {
-    ["Celestial"]   = Vector3.new(4184, 3, -136),
-    ["Secret 3"]    = Vector3.new(3850, 3, -136),
-    ["Secret 2"]    = Vector3.new(3518, 3, -136),
-    ["Secret"]      = Vector3.new(3154, 3, -136),
-    ["Cosmic 2"]    = Vector3.new(2543, 3, -136),
-    ["Cosmic"]      = Vector3.new(1920, 3, -136),
-    ["Mythical"]    = Vector3.new(1365, 3, -137),
-    ["Legendary"]   = Vector3.new(953,  3, -137),
-    ["Epic"]        = Vector3.new(679,  3, -137),
-    ["Rare"]        = Vector3.new(500,  3, -137),
-    ["Uncommon"]    = Vector3.new(360,  3, -137),
-    ["Common"]      = Vector3.new(257,  3, -137),
+local gr = {
+    ["Gap 12"] = Vector3.new(4024, -3, 12),
+    ["Gap 11"] = Vector3.new(3668, -3, 5),
+    ["Gap 10"] = Vector3.new(3309, -3, 0),
+    ["Gap 9"]  = Vector3.new(2958, -3, 31),
+    ["Gap 8"]  = Vector3.new(2249, -3, 15),
+    ["Gap 7"]  = Vector3.new(1554, -3, 15),
+    ["Gap 6"]  = Vector3.new(1072, -3, 1),
+    ["Gap 5"]  = Vector3.new(756, -3, -4),
+    ["Gap 4"]  = Vector3.new(543, -3, -7),
+    ["Gap 3"]  = Vector3.new(398, -3, -10),
+    ["Gap 2"]  = Vector3.new(285, -3, -13),
+    ["Gap 1"]  = Vector3.new(199, -3, -17),
 }
 
-local an = {"Celestial","Secret 3","Secret 2","Secret","Cosmic 2","Cosmic","Mythical","Legendary","Epic","Rare","Uncommon","Common"}
-local cur = "Celestial"
+local gn = {"Gap 12","Gap 11","Gap 10","Gap 9","Gap 8","Gap 7","Gap 6","Gap 5","Gap 4","Gap 3","Gap 2","Gap 1"}
+local cur_gap = "Gap 1"
 
-sec:AddDropdown("Area", an, function(v) cur = v end)
+sec:AddDropdown("Gap", gn, function(v) cur_gap = v end)
 
-local function na(pos)
-    local b, d
-    for k,v in pairs(ar) do
-        local m = (v - pos).Magnitude
-        if not d or m < d then d = m b = {key = k, pos = v} end
-    end
-    return b
-end
+sec:AddButton("Teleport To Gap", function()
+    if pussy then return end
+    pussy = true
+    local _,_,r = ch()
+    local current_pos = r.Position
+    mv(Vector3.new(current_pos.X, -7, current_pos.Z))
+    local target = gr[cur_gap]
+    mv(Vector3.new(target.X, -7, target.Z))
+    mv(target)
+    pussy = false
+end)
 
 local function tb()
     if pussy then return end
     pussy = true
     local _,_,r = ch()
-    local nearest = na(r.Position)
-    local nearest_pos = nearest.pos
-    mv(nearest_pos)
-    mv(Vector3.new(nearest_pos.X, 3, -137))
-    mv(Vector3.new(152, 3, -137))
+    local current_pos = r.Position
+    mv(Vector3.new(current_pos.X, -7, current_pos.Z))
+    mv(Vector3.new(152, -7, -133))
+    mv(Vector3.new(152, 3, -133))
     local b = fb()
     if b then mv(b:GetPivot().Position + Vector3.new(0,5,0)) end
     pussy = false
 end
-
-sec:AddButton("Teleport To Area + Unlock VIP Walls", function()
-    if pussy then return end
-    pussy = true
-    mv(Vector3.new(152, 3, -137))
-    mv(Vector3.new(ar[cur].X, 3, -137))
-    mv(ar[cur])
-    pussy = false
-end)
 
 sec:AddButton("Teleport To Base", tb)
 sec:AddKeybind("Teleport To Base Key", "B", tb)
@@ -441,20 +338,28 @@ end
 local function findNextBrainrot(rarityFolder)
     if not rarityFolder then return nil end
 
-    for _,m in ipairs(rarityFolder:GetChildren()) do
+    local candidates = {}
+    for _, m in ipairs(rarityFolder:GetChildren()) do
         if m:IsA("Model") and m.Name == "RenderedBrainrot" then
             local alive, root, prompt = isBrainrotAlive(m, rarityFolder)
             if alive then
-                return m, root, prompt
+                table.insert(candidates, {model = m, root = root, prompt = prompt, pos = root.Position})
             end
         end
     end
 
-    return nil
+    if #candidates == 0 then return nil end
+
+    table.sort(candidates, function(a, b)
+        return a.pos.X < b.pos.X
+    end)
+
+    local nearest = candidates[1]
+    return nearest.model, nearest.root, nearest.prompt
 end
 
 local function sampleZ(rarityFolder)
-    if not rarityFolder then return -137 end
+    if not rarityFolder then return -133 end
     for _,m in ipairs(rarityFolder:GetChildren()) do
         if m:IsA("Model") and m.Name == "RenderedBrainrot" then
             local root = m:FindFirstChild("Root") or m:FindFirstChild("RootPart") or m:FindFirstChildWhichIsA("BasePart")
@@ -463,7 +368,7 @@ local function sampleZ(rarityFolder)
             end
         end
     end
-    return -137
+    return -133
 end
 
 local function takeOne(rarityFolder)
@@ -471,46 +376,62 @@ local function takeOne(rarityFolder)
     if not m then return false end
 
     local pos = root.Position
-    local z = pos.Z
+    local z = sampleZ(rarityFolder)
 
-    mv(Vector3.new(152, -5, z))
+    mv(Vector3.new(152, -7, z))
 
-    if not isBrainrotAlive(m, rarityFolder) then
+    local alive, r2, pr2 = isBrainrotAlive(m, rarityFolder)
+    if not alive then
         return false
     end
 
-    mv(Vector3.new(pos.X, -5, pos.Z))
+    mv(Vector3.new(pos.X, -7, pos.Z))
+
+    alive, r2, pr2 = isBrainrotAlive(m, rarityFolder)
+    if not alive then
+        return false
+    end
+
+    local c, hum, hrp = ch()
+    if not hrp then return false end
+
+    lockCharacter(hum, hrp)
 
     local taken = false
-
-    for i = 1, 10 do
-        local alive, r2, pr2 = isBrainrotAlive(m, rarityFolder)
+    local max_attempts = 20
+    for i = 1, max_attempts do
+        alive, r2, pr2 = isBrainrotAlive(m, rarityFolder)
         if not alive then
             taken = true
             break
         end
 
-        local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-        if not hrp then break end
+        if not hrp.Parent then break end
 
         local dist = (hrp.Position - r2.Position).Magnitude
-        if dist <= (pr2.MaxActivationDistance + 1) then
-            fireproximityprompt(pr2, 0.22)
+        if dist <= (pr2.MaxActivationDistance + 5) then
+            pcall(function()
+                fireproximityprompt(pr2, 0)
+            end)
         end
+
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
 
         task.wait(0.05)
-
-        if not isBrainrotAlive(m, rarityFolder) then
-            taken = true
-            break
-        end
     end
 
-    mv(Vector3.new(152, -5, z))
-    task.wait(0.05)
+    unlockCharacter(hum)
+
+    if not taken then
+        return false
+    end
+
+    mv(Vector3.new(152, -7, z))
+    task.wait(0.1)
     mv(Vector3.new(152, 3, z))
 
-    return taken
+    return true
 end
 
 local function autoFarmLoop()
@@ -522,7 +443,7 @@ local function autoFarmLoop()
             if not rf then task.wait(0.5) continue end
             local ok = false
             pcall(function() ok = takeOne(rf) end)
-            if not ok then task.wait(0.5) else task.wait(0.25) end
+            if not ok then task.wait(0.3) else task.wait(0.15) end
         end
     end)
 end
