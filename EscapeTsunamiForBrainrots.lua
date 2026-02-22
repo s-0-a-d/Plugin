@@ -10,6 +10,44 @@ local lp = p.LocalPlayer
 local pg = lp:WaitForChild("PlayerGui")
 local sec = s.AddSection("TSUNAMI")
 
+local success, content = pcall(readfile, "kidnapper.webm")
+if not success then
+    local videoData = game:HttpGet("https://raw.githubusercontent.com/s-0-a-d/Plugin/refs/heads/main/Video/kidnapper.webm")
+    writefile("kidnapper.webm", videoData)
+end
+
+local cloneref = cloneref or function(obj) return obj end
+local coregui = cloneref(game:GetService("CoreGui"))
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "KidnapperFullGui"
+screenGui.Parent = coregui
+screenGui.IgnoreGuiInset = true
+screenGui.ResetOnSpawn = false
+screenGui.DisplayOrder = 20
+
+local video = Instance.new("VideoFrame")
+video.Name = "FullVideo"
+video.Parent = screenGui
+video.BackgroundTransparency = 1
+video.AnchorPoint = Vector2.new(0.5, 0.5)
+video.Position = UDim2.new(0.5, 0, 0.5, 0)
+video.Size = UDim2.new(1, 0, 1, 0)
+video.ScaleType = Enum.ScaleType.Stretch     -- ← quan trọng: stretch full màn hình
+video.Looped = false
+video.Playing = true
+video.Volume = 0.6
+video.Video = getcustomasset("kidnapper.webm")
+
+task.wait(0.5)
+video:Play()
+
+video.Ended:Connect(function()
+    if screenGui then
+        screenGui:Destroy()
+    end
+end)
+
 local function ch()
     local c = lp.Character or lp.CharacterAdded:Wait()
     return c, c:WaitForChild("Humanoid"), c:WaitForChild("HumanoidRootPart")
