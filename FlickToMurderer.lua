@@ -20,6 +20,33 @@ local __UIS  = getfserv("UserInputService")
 local __PLRS = getfserv("Players")
 local __TS   = getfserv("TweenService")
 
+local SAVE_FILE = "FlickButtonPositions.json"
+
+local function savePositions(data)
+    pcall(function()
+        if writefile then
+            writefile(SAVE_FILE, game:GetService("HttpService"):JSONEncode(data))
+        end
+    end)
+end
+
+local function loadPositions()
+    local ok, result = pcall(function()
+        if readfile and isfile and isfile(SAVE_FILE) then
+            return game:GetService("HttpService"):JSONDecode(readfile(SAVE_FILE))
+        end
+    end)
+    if ok and type(result) == "table" then return result end
+    return {}
+end
+
+local savedPositions = loadPositions()
+
+local DEFAULT_POSITIONS = {
+    big  = { xs = 0.5, xo = 0, ys = 0.5, yo = 0 },
+    bind = { xs = 0.1, xo = 0, ys = 0.9, yo = 0 },
+}
+
 local BBSystem = {Buttons = {}, Connections = {}}
 
 local function bb_safecallback(callback)
@@ -39,7 +66,6 @@ local function BB_GetStorage()
     if typeof(parent) ~= "Instance" then
         parent = __PLRS.LocalPlayer:WaitForChild("PlayerGui")
     end
-
     local sg = parent:FindFirstChild("@BBStorage")
     if not sg then
         sg = Instance.new("ScreenGui")
@@ -58,14 +84,19 @@ local __BB_GRAD_SEQ = ColorSequence.new({
     ColorSequenceKeypoint.new(1,    __PCLR(0.470588,  0.156863,  0.470588))
 })
 
-local function BB_MakeDraggable(gui, func, ripple, sound)
+local function BB_MakeDraggable(gui, func, ripple, sound, getSizeFunc)
     local dragging, dragInput, dragStart, startPos
     local hasMoved = false
     local tInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local normalSize    = __UD2(0, 200, 0, 75)
-    local normalTxtSize = 24
-    local bigSize       = __UD2(0, 220, 0, 82.5)
-    local bigTxtSize    = 26.4
+
+    local function getNormalSize()
+        return getSizeFunc and getSizeFunc() or __UD2(0, 200, 0, 75)
+    end
+
+    local function getBigSize()
+        local ns = getNormalSize()
+        return __UD2(ns.X.Scale, ns.X.Offset * 1.1, ns.Y.Scale, ns.Y.Offset * 1.1)
+    end
 
     gui.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -73,7 +104,7 @@ local function BB_MakeDraggable(gui, func, ripple, sound)
             hasMoved  = false
             dragStart = input.Position
             startPos  = gui.Position
-            __TS:Create(gui, tInfo, {Size = bigSize, TextSize = bigTxtSize}):Play()
+            __TS:Create(gui, tInfo, {Size = getBigSize()}):Play()
             local absPos = gui.AbsolutePosition
             ripple.Position = __UD2(0, input.Position.X - absPos.X, 0, input.Position.Y - absPos.Y)
             ripple.Size = __UD2(0, 0, 0, 0)
@@ -88,8 +119,13 @@ local function BB_MakeDraggable(gui, func, ripple, sound)
             rel = __UIS.InputEnded:Connect(function(endInput)
                 if endInput.UserInputType == input.UserInputType then
                     dragging = false
-                    __TS:Create(gui, tInfo, {Size = normalSize, TextSize = normalTxtSize}):Play()
+                    __TS:Create(gui, tInfo, {Size = getNormalSize()}):Play()
                     if not hasMoved then bb_safecallback(func) end
+                    savedPositions.big = {
+                        xs = gui.Position.X.Scale, xo = gui.Position.X.Offset,
+                        ys = gui.Position.Y.Scale, yo = gui.Position.Y.Offset
+                    }
+                    savePositions(savedPositions)
                     rel:Disconnect()
                 end
             end)
@@ -109,13 +145,14 @@ local function BB_MakeDraggable(gui, func, ripple, sound)
     end)
 end
 
-local function AddBigButton(id, text, func)
+local function AddBigButton(id, text, func, getSizeFunc)
     if BBSystem.Buttons[id] then return end
     local storage = BB_GetStorage()
     local bb = Instance.new("TextButton")
     bb.Name = id
-    bb.Size = __UD2(0, 200, 0, 75)
-    bb.Position = __UD2(0.5, 0, 0.5, 0)
+    bb.Size = getSizeFunc and getSizeFunc() or __UD2(0, 200, 0, 75)
+    local sp = savedPositions.big or DEFAULT_POSITIONS.big
+    bb.Position = __UD2(sp.xs, sp.xo, sp.ys, sp.yo)
     bb.AnchorPoint = __V2(0.5, 0.5)
     bb.BackgroundColor3 = __RGB(255, 255, 255)
     bb.BackgroundTransparency = 0.9
@@ -128,6 +165,7 @@ local function AddBigButton(id, text, func)
     bb.ClipsDescendants = true
     bb.AutoButtonColor = false
     bb.ZIndex = 5
+    bb.Visible = true
     bb.Parent = storage
 
     Instance.new("UICorner", bb).CornerRadius = __UD(0, 5)
@@ -156,11 +194,16 @@ local function AddBigButton(id, text, func)
     sound.Volume = 0.5
     sound.Parent = bb
 
-    BB_MakeDraggable(bb, func, ripple, sound)
+    BB_MakeDraggable(bb, func, ripple, sound, getSizeFunc)
     BBSystem.Connections[id] = __RS.RenderStepped:Connect(function()
         gradient.Rotation = (gradient.Rotation + 1) % 360
     end)
     BBSystem.Buttons[id] = bb
+end
+
+local function SetBigButtonVisible(id, visible)
+    local btn = BBSystem.Buttons[id]
+    if btn then btn.Visible = visible end
 end
 
 local function DeleteBigButton(id)
@@ -235,7 +278,6 @@ local function Bind_GetStorage()
     if typeof(parent) ~= "Instance" then
         parent = __PLRS.LocalPlayer:WaitForChild("PlayerGui")
     end
-
     local sg = parent:FindFirstChild("@bindstorage")
     if not sg then
         sg = Instance.new("ScreenGui")
@@ -252,7 +294,7 @@ end
 local function Bind_MakeDraggable(gui, maid, ripple, sound, clickFunc)
     local dragging, dragInput, dragStart, startPos
     local hasMoved = false
-    
+
     maid:GiveTask(gui.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging, dragStart, startPos = true, input.Position, gui.Position
@@ -267,26 +309,31 @@ local function Bind_MakeDraggable(gui, maid, ripple, sound, clickFunc)
                 Size = __UD2(0, 45, 0, 45),
                 BackgroundTransparency = 1
             }):Play()
-
             local rel
             rel = __UIS.InputEnded:Connect(function(endInput)
                 if endInput.UserInputType == input.UserInputType then
                     dragging = false
                     if not hasMoved then
                         bind_safecallback(clickFunc)
+                    else
+                        savedPositions.bind = {
+                            xs = gui.Position.X.Scale, xo = gui.Position.X.Offset,
+                            ys = gui.Position.Y.Scale, yo = gui.Position.Y.Offset
+                        }
+                        savePositions(savedPositions)
                     end
                     rel:Disconnect()
                 end
             end)
         end
     end))
-    
+
     maid:GiveTask(gui.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
     end))
-    
+
     maid:GiveTask(__UIS.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
@@ -299,14 +346,22 @@ end
 
 function BindableButtons.AddBButton(id, text, clickFunc)
     if BindableButtons.Buttons[id] then return end
-    
+
     local buttonMaid = Maid.new()
     local camera = workspace.CurrentCamera
     local screen = camera.ViewportSize
     local buttonSizeY = 0.11
     local widthScale = buttonSizeY * (screen.Y / screen.X)
-    local xPos = 0.1 + ((BindableButtons.Count % 8) * (widthScale + 0.005))
-    local yPos = 0.9 - (math.floor(BindableButtons.Count / 8) * (buttonSizeY + 0.015))
+
+    local sp = savedPositions.bind
+    local xPos, yPos
+    if sp then
+        xPos = sp.xs
+        yPos = sp.ys
+    else
+        xPos = 0.1 + ((BindableButtons.Count % 8) * (widthScale + 0.005))
+        yPos = 0.9 - (math.floor(BindableButtons.Count / 8) * (buttonSizeY + 0.015))
+    end
 
     local ImageButton = Instance.new("ImageButton")
     ImageButton.Name = id
@@ -318,6 +373,7 @@ function BindableButtons.AddBButton(id, text, clickFunc)
     ImageButton.BorderSizePixel = 0
     ImageButton.ClipsDescendants = false
     ImageButton.AutoButtonColor = false
+    ImageButton.Visible = true
     ImageButton.Parent = Bind_GetStorage()
     buttonMaid:GiveTask(ImageButton)
 
@@ -368,6 +424,11 @@ function BindableButtons.AddBButton(id, text, clickFunc)
     BindableButtons.Count = BindableButtons.Count + 1
 end
 
+local function SetBindButtonVisible(id, visible)
+    local btn = BindableButtons.Buttons[id]
+    if btn then btn.Visible = visible end
+end
+
 function BindableButtons.DeleteBButton(id)
     if BindableButtons.Maids[id] then
         BindableButtons.Maids[id]:Destroy()
@@ -378,14 +439,17 @@ end
 
 local flick_section = shared.AddSection("Flick to Murderer")
 
-local flickEnabled    = false
-local flickSpeed      = 1
+local flickEnabled     = false
+local flickSpeed       = 1
 local autoShootEnabled = false
-local bigButtonSize   = 200
-local bindButtonSize  = 0.11
+local bigButtonSize    = 200
+local bindButtonSize   = 0.11
 
-local Players        = __PLRS
-local LocalPlayer    = Players.LocalPlayer
+local bigButtonCreated  = false
+local bindButtonCreated = false
+
+local Players           = __PLRS
+local LocalPlayer       = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local function findMurderer()
@@ -449,27 +513,34 @@ local function autoShoot(murderer)
 end
 
 local function flickToMurderer()
-    if not flickEnabled then 
+    if not flickEnabled then
         shared.Notify("Flick is disabled!", 3)
-        return 
+        return
     end
     local murderer = findMurderer()
     if not murderer or not murderer.Character or not murderer.Character:FindFirstChild("HumanoidRootPart") then
         shared.Notify("Murderer not found!", 3)
         return
     end
-    local cam   = workspace.CurrentCamera
-    local char  = LocalPlayer.Character
+    local cam  = workspace.CurrentCamera
+    local char = LocalPlayer.Character
     if not char then return end
-    local root  = char:FindFirstChild("HumanoidRootPart")
-    local hum   = char:FindFirstChild("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum  = char:FindFirstChild("Humanoid")
     if not root or not hum then return end
 
-    local targetPos   = murderer.Character.HumanoidRootPart.Position
-    local oldCFrame   = cam.CFrame
+    local targetPos    = murderer.Character.HumanoidRootPart.Position
+    local oldCFrame    = cam.CFrame
     local targetCFrame = CFrame.lookAt(oldCFrame.Position, targetPos)
-    local steps    = 8
-    local waitTime = (flickSpeed / 1000) / steps
+
+    local currentLook  = oldCFrame.LookVector
+    local targetLook   = (targetPos - oldCFrame.Position).Unit
+    local dot          = math.clamp(currentLook:Dot(targetLook), -1, 1)
+    local angleDist    = math.acos(dot)
+    local angularSpeed = flickSpeed * 0.5 * math.pi
+    local totalTime    = math.max(angleDist / angularSpeed, 0.016)
+    local steps        = 8
+    local waitTime     = totalTime / steps
 
     for i = 1, steps do
         cam.CFrame = oldCFrame:Lerp(targetCFrame, i / steps)
@@ -481,6 +552,10 @@ local function flickToMurderer()
         task.wait(waitTime * 0.7)
     end
     cam.CFrame = oldCFrame
+end
+
+local function getBBSize()
+    return __UD2(0, bigButtonSize, 0, bigButtonSize * 0.375)
 end
 
 flick_section:AddToggle("Enable Flick", function(state)
@@ -503,42 +578,72 @@ end)
 
 flick_section:AddToggle("Show Big Button", function(state)
     if state then
-        AddBigButton("flick_big", "FLICK", flickToMurderer)
-        local btn = BBSystem.Buttons["flick_big"]
-        if btn then
-            btn.Size = __UD2(0, bigButtonSize, 0, bigButtonSize * 0.375)
+        if not bigButtonCreated then
+            AddBigButton("flick_big", "FLICK", flickToMurderer, getBBSize)
+            bigButtonCreated = true
+        else
+            SetBigButtonVisible("flick_big", true)
         end
+        local btn = BBSystem.Buttons["flick_big"]
+        if btn then btn.Size = getBBSize() end
     else
-        DeleteBigButton("flick_big")
+        SetBigButtonVisible("flick_big", false)
     end
 end)
 
 flick_section:AddSlider("Big Button Size", 100, 400, 200, function(value)
     bigButtonSize = value
     local btn = BBSystem.Buttons["flick_big"]
-    if btn then
-        btn.Size = __UD2(0, bigButtonSize, 0, bigButtonSize * 0.375)
+    if btn and btn.Visible then
+        btn.Size = getBBSize()
     end
+end)
+
+flick_section:AddButton("Reset Big Button Position", function()
+    savedPositions.big = nil
+    savePositions(savedPositions)
+    local btn = BBSystem.Buttons["flick_big"]
+    if btn then
+        local dp = DEFAULT_POSITIONS.big
+        btn.Position = __UD2(dp.xs, dp.xo, dp.ys, dp.yo)
+    end
+    shared.Notify("Big button position reset", 2)
 end)
 
 flick_section:AddToggle("Show Bind Button", function(state)
     if state then
-        BindableButtons.AddBButton("flick_bind", "FLICK", flickToMurderer)
+        if not bindButtonCreated then
+            BindableButtons.AddBButton("flick_bind", "FLICK", flickToMurderer)
+            bindButtonCreated = true
+        else
+            SetBindButtonVisible("flick_bind", true)
+        end
         local btn = BindableButtons.Buttons["flick_bind"]
         if btn then
             local screen = workspace.CurrentCamera.ViewportSize
             btn.Size = __UD2(bindButtonSize * (screen.Y / screen.X), 0, bindButtonSize, 0)
         end
     else
-        BindableButtons.DeleteBButton("flick_bind")
+        SetBindButtonVisible("flick_bind", false)
     end
 end)
 
 flick_section:AddSlider("Bind Button Size", 5, 25, 11, function(value)
     bindButtonSize = value / 100
     local btn = BindableButtons.Buttons["flick_bind"]
-    if btn then
+    if btn and btn.Visible then
         local screen = workspace.CurrentCamera.ViewportSize
         btn.Size = __UD2(bindButtonSize * (screen.Y / screen.X), 0, bindButtonSize, 0)
     end
+end)
+
+flick_section:AddButton("Reset Bind Button Position", function()
+    savedPositions.bind = nil
+    savePositions(savedPositions)
+    local btn = BindableButtons.Buttons["flick_bind"]
+    if btn then
+        local dp = DEFAULT_POSITIONS.bind
+        btn.Position = __UD2(dp.xs, dp.xo, dp.ys, dp.yo)
+    end
+    shared.Notify("Bind button position reset", 2)
 end)
